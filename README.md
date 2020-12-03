@@ -40,7 +40,10 @@ Please see the following page from the HelloID Docs for more information.
     - [ ] enable.ps1
     - [ ] disable.ps1
     - [ ] delete.ps1
-    - [ ] update.ps1    
+    - [ ] update.ps1
+    - [ ] entitlements.ps1
+    - [ ] grantPermission.ps1
+    - [ ] revokePermission.ps1    
 
 2. Fill in the required fields on the 'Configuration' tab.
 
