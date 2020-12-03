@@ -1,0 +1,34 @@
+[
+    {
+      "key": "portalBaseUrl",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "HelloID Portal Base URL",
+        "placeholder": "https://<customer_portal>.helloid.com/",
+        "required": true
+      }
+    },
+    {
+      "key": "helloIDApiKey",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "HelloID API Key",
+        "placeholder": "NHPXRGJKABCDEQWLQYNQHUZLZTHCCFGH",
+        "description": "",
+        "required": true
+      }
+    },
+    {
+      "key": "helloIDApiSecret",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "HelloID API Secret",
+        "type": "password",
+        "placeholder": "GdefgVALxYffnWrGSQsRabcThcxyYFGc",
+        "required": true
+      }
+    }
+  ]

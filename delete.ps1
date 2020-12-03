@@ -1,17 +1,19 @@
-﻿$portalBaseUrl = "https://<customer_portal>.helloid.com";
-$HelloIDApiKey = "<Provide your API key here>";
-$HelloIDApiSecret = "<Provide your API secret here>";
+﻿$config = ConvertFrom-Json $configuration
 
-# Enable TLS 1.2
-if ([Net.ServicePointManager]::SecurityProtocol -notmatch "Tls12") {
-    [Net.ServicePointManager]::SecurityProtocol += [Net.SecurityProtocolType]::Tls12
-}
+$portalBaseUrl = $config.portalBaseUrl
+$HelloIDApiKey = $config.helloIDApiKey
+$HelloIDApiSecret = $config.helloIDApiSecret
+
+# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
 #Initialize default properties
 $success = $False;
 $p = $person | ConvertFrom-Json
+$m = $manager | ConvertFrom-Json;
 $aRef = $accountReference | ConvertFrom-Json;
-$auditMessage = " not removed succesfully";
+$mRef = $managerAccountReference | ConvertFrom-Json;
+$auditMessage = "Account for person " + $p.DisplayName + " not removed succesfully";
 
 try{
     if(-Not($dryRun -eq $true)) {
@@ -32,19 +34,10 @@ try{
         $response = Invoke-RestMethod -Method Delete -Uri $uri -Headers $headers -Verbose:$false
 
         $success = $True;
-        $auditMessage = " succesfully"; 
+        $auditMessage = " $aRef succesfully"; 
     }
 }catch{
-    if(-Not($_.Exception.Response -eq $null)){
-        $result = $_.Exception.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($result)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $errResponse = $reader.ReadToEnd();
-        $auditMessage = " : ${errResponse}";
-    }else {
-        $auditMessage = " : General error";
-    }  
+    $auditMessage = " $($account.userName) : $_";
 }
 
 #build up result
@@ -53,13 +46,6 @@ $result = [PSCustomObject]@{
 	AccountReference = $aRef;
 	AuditDetails = $auditMessage;
     Account = $account;
-
-    # Optionally return data for use in other systems
-    ExportData = [PSCustomObject]@{
-        displayName = $account.DisplayName;
-        userName = $account.UserName;
-        externalId = $aRef;
-    };
 };
 
 #send result back

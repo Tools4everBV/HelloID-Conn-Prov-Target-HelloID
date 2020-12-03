@@ -1,11 +1,11 @@
-﻿$portalBaseUrl = "https://<customer_portal>.helloid.com";
-$HelloIDApiKey = "<Provide your API key here>";
-$HelloIDApiSecret = "<Provide your API secret here>";
+﻿$config = ConvertFrom-Json $configuration
 
-# Enable TLS 1.2
-if ([Net.ServicePointManager]::SecurityProtocol -notmatch "Tls12") {
-    [Net.ServicePointManager]::SecurityProtocol += [Net.SecurityProtocolType]::Tls12
-}
+$portalBaseUrl = $config.portalBaseUrl
+$HelloIDApiKey = $config.helloIDApiKey
+$HelloIDApiSecret = $config.helloIDApiSecret
+
+# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
 #Initialize default properties
 $success = $False;
@@ -34,19 +34,10 @@ try{
         $getAccountResponse = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers -ContentType "application/json" -Verbose:$false
 		$account = $getAccountResponse;
 
-        Write-Verbose -Verbose ("Account for person " + $p.DisplayName + " gathered succesfully");
+        Write-Verbose -Verbose ("Account for person " + $p.DisplayName + " found");
     }
 }catch{
-    if(-Not($_.Exception.Response -eq $null)){
-        $result = $_.Exception.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($result)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $errResponse = $reader.ReadToEnd();
-        Write-Verbose -Verbose (" not gathered succesfully: ${errResponse}");
-    }else {
-        Write-Verbose -Verbose (" not gathered succesfully: General error");
-    }  
+    $auditMessage = " $aRef not found : $_";
 }
 
 #Change mapping here
@@ -79,19 +70,10 @@ try{
         $response = Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
 
         $success = $True;
-        $auditMessage = " succesfully";
+        $auditMessage = " $($account.userName) succesfully"; 
     }
 }catch{
-    if(-Not($_.Exception.Response -eq $null)){
-        $result = $_.Exception.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($result)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $errResponse = $reader.ReadToEnd();
-        $auditMessage = " : ${errResponse}";
-    }else {
-        $auditMessage = " : General error";
-    }  
+    $auditMessage = " $($account.userName) : $_";
 }
 
 #build up result

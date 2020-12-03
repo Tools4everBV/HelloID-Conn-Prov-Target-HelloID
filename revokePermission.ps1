@@ -1,23 +1,23 @@
-$portalBaseUrl = "https://<customer>.helloid.com"
-$HelloIDApiKey = "<Provide your API key here>"
-$HelloIDApiSecret = "<Provide your API secret here>"
+$config = ConvertFrom-Json $configuration
+
+$portalBaseUrl = $config.portalBaseUrl
+$HelloIDApiKey = $config.helloIDApiKey
+$HelloIDApiSecret = $config.helloIDApiSecret
  
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
  
 #Initialize default properties
 $success = $False;
-$auditMessage = "Membership for person " + $p.DisplayName + " not removed successfully";
- 
 $p = $person | ConvertFrom-Json;
 $m = $manager | ConvertFrom-Json;
 $aRef = $accountReference | ConvertFrom-Json;
 $mRef = $managerAccountReference | ConvertFrom-Json;
 $pRef = $permissionReference | ConvertFrom-json;
+$auditMessage = "Membership for person " + $p.DisplayName + " not removed successfully";
  
 if(-Not($dryRun -eq $True)) {
-    try
-    {
+    try {
         # Create authorization headers with HelloID API key
         $pair = "${HelloIDApiKey}:${HelloIDApiSecret}"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -34,22 +34,11 @@ if(-Not($dryRun -eq $True)) {
  
         $response = Invoke-RestMethod -Uri $uri -Method DELETE -Headers $headers
         $success = $True;
-        $auditMessage = " successfully";
-    }catch
-    {
-            if(-Not($_.Exception.Response -eq $null)){
-                $result = $_.Exception.Response.GetResponseStream()
-                $reader = New-Object System.IO.StreamReader($result)
-                $reader.BaseStream.Position = 0
-                $reader.DiscardBufferedData()
-                $errResponse = $reader.ReadToEnd();
-                $auditMessage = " : ${errResponse}";
-            } else {
-                $auditMessage = " : General error";
-            }
+        $auditMessage = " $aRef successfully";
+    } catch {
+        $auditMessage = " $aRef : $_";
     }
 }
- 
  
 #build up result
 $result = [PSCustomObject]@{
@@ -58,4 +47,4 @@ $result = [PSCustomObject]@{
     Account = $account;
 };
  
-Write-Output $result | ConvertTo-Json -Depth 10;  
+Write-Output $result | ConvertTo-Json -Depth 10;
