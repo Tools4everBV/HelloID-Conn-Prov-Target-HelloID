@@ -29,6 +29,7 @@ $account = [PSCustomObject]@{
     }
 }
 
+#Create or Correlate
 try{
     if(-Not($dryRun -eq $True)) {
         # Create authorization headers with HelloID API key
@@ -44,16 +45,32 @@ try{
             $PortalBaseUrl = $PortalBaseUrl + "/"
         }
         $uri = ($PortalBaseUrl +"api/v1/users/")
-
+    #Append desired username to portal uri
+    $correlationUri = ($uri + "$($account.username)")
+    #Look for account by username
+    $correlationResponse = Invoke-RestMethod -Method GET -Uri $correlationUri -Headers $headers
+    #Correlate User
+    $aRef = $correlationResponse.userGUID
+    $auditMessage = "Existing account found and correlated successfully"
+    }
+}catch{
+    #User not found (expected case)
+    if($error[0].Exception -like "*404*"){
         $body = $account | ConvertTo-Json -Depth 10
+        #Create the user account
         $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
+        #Return the GUID for accountReference
         $aRef = $response.userGUID
 
         $success = $True;
-        $auditMessage = " $($account.userName) succesfully"; 
+        $auditMessage = " created succesfully"; 
     }
-}catch{
-    $auditMessage = " $($account.userName) : $_";
+    elseif($error[0].Exception -like "*401*"){
+        $auditMessage = " not created succesfully. Check configuration settings and/or IP restrictions.";
+    }
+    else{
+        $auditMessage = " not created succesfully: $_"; 
+    }
 }
 
 #build up result
