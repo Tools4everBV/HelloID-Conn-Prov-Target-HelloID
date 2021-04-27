@@ -50,3 +50,6 @@ Please see the following page from the HelloID Docs for more information.
 ![image](./assets/config.png)
 
 _For more information about our HelloID PowerShell connectors, please refer to our general [Documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-How-to-configure-a-custom-PowerShell-target-connector) page_
+
+# HelloID Docs
+The official HelloID documentation can be found at: https://docs.helloid.com/
