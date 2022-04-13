@@ -1,34 +1,64 @@
 [
-    {
-      "key": "portalBaseUrl",
-      "type": "input",
-      "defaultValue": "",
-      "templateOptions": {
-        "label": "HelloID Portal Base URL",
-        "placeholder": "https://<customer_portal>.helloid.com/",
-        "required": true
-      }
-    },
-    {
-      "key": "helloIDApiKey",
-      "type": "input",
-      "defaultValue": "",
-      "templateOptions": {
-        "label": "HelloID API Key",
-        "placeholder": "NHPXRGJKABCDEQWLQYNQHUZLZTHCCFGH",
-        "description": "",
-        "required": true
-      }
-    },
-    {
-      "key": "helloIDApiSecret",
-      "type": "input",
-      "defaultValue": "",
-      "templateOptions": {
-        "label": "HelloID API Secret",
-        "type": "password",
-        "placeholder": "GdefgVALxYffnWrGSQsRabcThcxyYFGc",
-        "required": true
-      }
+  {
+    "key": "portalBaseUrl",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "Portal Base URL",
+      "placeholder": "https://<customer_portal>.helloid.com/",
+      "required": true
     }
-  ]
+  },
+  {
+    "key": "ApiKey",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "API Key",
+      "placeholder": "NHPXRGJKABCDEQWLQYNQHUZLZTHCCFGH",
+      "description": "",
+      "required": true
+    }
+  },
+  {
+    "key": "ApiSecret",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "API Secret",
+      "type": "password",
+      "placeholder": "GdefgVALxYffnWrGSQsRabcThcxyYFGc",
+      "required": true
+    }
+  },
+  {
+    "key": "restoreSoftDeletedUsers",
+    "type": "checkbox",
+    "defaultValue": false,
+    "templateOptions": {
+      "label": "Restore soft deleted users",
+      "required": false,
+      "description": "Restore soft deleted users on update actions (create (correlate), update, enable, disable)"
+    }
+  },
+  {
+    "key": "updateOnCorrelate",
+    "type": "checkbox",
+    "defaultValue": false,
+    "templateOptions": {
+      "label": "Update on correlation",
+      "required": false,
+      "description": "Update user account with mapped attributes upon correlation"
+    }
+  },
+  {
+    "key": "overwritePasswordOnUpdate",
+    "type": "checkbox",
+    "defaultValue": false,
+    "templateOptions": {
+      "label": "Overwrite password on update",
+      "required": false,
+      "description": "Overwrite the current password when updating the user account"
+    }
+  }
+]
