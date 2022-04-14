@@ -1,5 +1,7 @@
-﻿$c = $configuration | ConvertFrom-Json
+$c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
+$m = $manager | ConvertFrom-Json;
+$mRef = $managerAccountReference | ConvertFrom-Json;
 $success = $false
 $auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
 
@@ -70,8 +72,29 @@ function New-RandomPassword {
 }
 #endregion functions
 
+
 # Change mapping here
+
+# Optional, Search AD account and return the sid (to set the imuttableId with)
+# $userPrincipalName = $p.accounts.MicrosoftActiveDirectory.userPrincipalName 
+# try{
+#     $filter = "UserPrincipalName -eq '$userPrincipalName'"
+#     Write-Information "Searching for user that matches the filter: $filter";
+
+#     $adUser = Get-ADUser -Filter $filter -Property sid
+
+#     if($adUser -eq $null){
+#         throw "No AD account found that matches the filter"
+#     }else{
+#         Write-Information "Successfully found AD account that matches the filter: $($adUser.Name) ($([string]$adUser.SID))"
+#     }
+# }catch{
+# 	Write-Warning $_;
+# }
+
 $account = [PSCustomObject]@{
+    # Optional, if you use a sync to HelloID, make sure set the immutableId with the AD SID
+    # immutableId          = [string]$adUser.sid;
     userName             = $p.Accounts.MicrosoftActiveDirectory.userPrincipalName
     firstName            = $p.Name.NickName
     lastName             = $p.Name.FamilyName
@@ -79,10 +102,13 @@ $account = [PSCustomObject]@{
     isEnabled            = $false
     password             = New-RandomPassword 16
     mustChangePassword   = $true
+    managedByUserGUID    = $mRef.UserGuid # Only available after grant for manager
     # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
     source               = "Local"
     userAttributes = @{
         EmployeeId          = $p.ExternalId
+        Department          = $p.PrimaryContract.Department.DisplayName
+        Title               = $p.PrimaryContract.Title.Name
         PhoneNumber         = $p.Contact.Business.Phone.Mobile
         SAMAccountName      = $p.Accounts.MicrosoftActiveDirectory.sAMAccountName 
     }
@@ -90,6 +116,8 @@ $account = [PSCustomObject]@{
 
 # Troubleshooting
 # $account = [PSCustomObject]@{
+#     # Optional, if you use a sync to HelloID, make sure set the immutableId with the AD SID
+#     immutableId          = [string]$adUser.sid;
 #     userName             = "user@enyoi.onmicrosoft.com"
 #     firstName            = "John"
 #     lastName             = "Doe"
@@ -97,12 +125,15 @@ $account = [PSCustomObject]@{
 #     isEnabled            = $false
 #     password             = "Tools4ever!"
 #     mustChangePassword   = $true
+#     managedByUserGUID    = "178cb594-09b1-4645-892a-9fe6a8eb8a08" # Only available after grant for manager
 #     # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
-#     source               = "Local"
+#     source               = $(Get-adforest).RootDomain
 #     userAttributes = @{
 #         EmployeeId           = "12345678"
+#         Department           = "Test"
+#         Title                = "Tester"
 #         PhoneNumber          = "+3167652102"
-#         SAMAccountName      = "Test"
+#         SAMAccountName       = "Test"
 #     }
 # }
 # $dryRun = $false
