@@ -1,5 +1,8 @@
-﻿$c = $configuration | ConvertFrom-Json
+$c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
+$m = $manager | ConvertFrom-Json;
+$aRef = $accountReference | ConvertFrom-Json;
+$mRef = $managerAccountReference | ConvertFrom-Json;
 $success = $false
 $auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
 
@@ -71,17 +74,21 @@ function New-RandomPassword {
 
 # Change mapping here
 $account = [PSCustomObject]@{
-    userName             = $p.Accounts.MicrosoftActiveDirectory.userPrincipalName
+    userGUID             = $aRef.UserGUID
+    userName             = $aRef.Username
     firstName            = $p.Name.NickName
     lastName             = $p.Name.FamilyName
     contactEmail         = $p.Accounts.MicrosoftActiveDirectory.mail
     isEnabled            = $false
     password             = New-RandomPassword 16
-    mustChangePassword   = $true
+    mustChangePassword   = $false
+    managedByUserGUID    = $mRef.UserGuid # Only available after grant for manager
     # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
     source               = "Local"
     userAttributes = @{
         EmployeeId          = $p.ExternalId
+        Department          = $p.PrimaryContract.Department.DisplayName
+        Title               = $p.PrimaryContract.Title.Name
         PhoneNumber         = $p.Contact.Business.Phone.Mobile
         SAMAccountName      = $p.Accounts.MicrosoftActiveDirectory.sAMAccountName 
     }
@@ -89,6 +96,28 @@ $account = [PSCustomObject]@{
 
 # Troubleshooting
 # $account = [PSCustomObject]@{
+#     userGUID             = "617bf478-8918-4776-9172-a3b258a185bc"
+#     userName             = "B.vanderLubben@frankelandgroep.local"
+#     firstName            = "Brian"
+#     lastName             = "van der Lubben"
+#     contactEmail         = "B.vanderLubben@frankelandgroep.nl"
+#     # isEnabled            = $false
+#     password             = "Tools4ever!"
+#     mustChangePassword   = $false
+#     managedByUserGUID    = "a125e91f-9524-4936-85ef-7b0ccc4c8cdf" # Only available after grant for manager
+#     # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
+#     source               = "frankelandgroep.local"
+#     userAttributes = @{
+#         EmployeeId           = "453090"
+#         Department           = "4112 unit 2"
+#         Title                = "Subhoofd"
+#         # PhoneNumber          = "+3167652102"
+#         SAMAccountName      = "b.vanderlubben"
+#     }
+# }
+
+# $account = [PSCustomObject]@{
+#     userGUID             = "ae71715a-2964-4ce6-844a-b684d61aa1e5"
 #     userName             = "user@enyoi.onmicrosoft.com"
 #     firstName            = "John"
 #     lastName             = "Doe"
@@ -96,10 +125,13 @@ $account = [PSCustomObject]@{
 #     isEnabled            = $false
 #     password             = "Tools4ever!"
 #     mustChangePassword   = $true
+#     managedByUserGUID    = "a125e91f-9524-4936-85ef-7b0ccc4c8cdf" # Only available after grant for manager
 #     # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
 #     source               = "Local"
 #     userAttributes = @{
 #         EmployeeId           = "12345678"
+#         Department           = "Test"
+#         Title                = "Tester"
 #         PhoneNumber          = "+3167652102"
 #         SAMAccountName      = "Test"
 #     }
