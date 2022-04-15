@@ -1,8 +1,8 @@
 $c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
-$m = $manager | ConvertFrom-Json;
-$aRef = $accountReference | ConvertFrom-Json;
-$mRef = $managerAccountReference | ConvertFrom-Json;
+$m = $manager | ConvertFrom-Json
+$aRef = $accountReference | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
 $success = $false
 $auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
 
@@ -95,27 +95,6 @@ $account = [PSCustomObject]@{
 }
 
 # Troubleshooting
-# $account = [PSCustomObject]@{
-#     userGUID             = "617bf478-8918-4776-9172-a3b258a185bc"
-#     userName             = "B.vanderLubben@frankelandgroep.local"
-#     firstName            = "Brian"
-#     lastName             = "van der Lubben"
-#     contactEmail         = "B.vanderLubben@frankelandgroep.nl"
-#     # isEnabled            = $false
-#     password             = "Tools4ever!"
-#     mustChangePassword   = $false
-#     managedByUserGUID    = "a125e91f-9524-4936-85ef-7b0ccc4c8cdf" # Only available after grant for manager
-#     # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
-#     source               = "frankelandgroep.local"
-#     userAttributes = @{
-#         EmployeeId           = "453090"
-#         Department           = "4112 unit 2"
-#         Title                = "Subhoofd"
-#         # PhoneNumber          = "+3167652102"
-#         SAMAccountName      = "b.vanderlubben"
-#     }
-# }
-
 # $account = [PSCustomObject]@{
 #     userGUID             = "ae71715a-2964-4ce6-844a-b684d61aa1e5"
 #     userName             = "user@enyoi.onmicrosoft.com"
@@ -222,11 +201,10 @@ $result = [PSCustomObject]@{
     Account          = $account
 
      # Optionally return data for use in other systems
-     ExportData = [PSCustomObject]@{
-        DisplayName = $account.DisplayName;
-        Username    = $aRef.Username;
-        UserGUID    = $aRef.UserGUID;
-    };
+    #  ExportData = [PSCustomObject]@{
+    #     Username    = $aRef.Username;
+    #     UserGUID    = $aRef.UserGUID;
+    # };
 }
 
 Write-Output $result | ConvertTo-Json -Depth 10
