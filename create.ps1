@@ -1,7 +1,7 @@
-$c = $configuration | ConvertFrom-Json
+﻿$c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
-$m = $manager | ConvertFrom-Json;
-$mRef = $managerAccountReference | ConvertFrom-Json;
+$m = $manager | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
 $success = $false
 $auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
 
@@ -72,8 +72,8 @@ function New-RandomPassword {
 }
 #endregion functions
 
-
 # Change mapping here
+
 
 # Optional, Search AD account and return the sid (to set the imuttableId with)
 # $userPrincipalName = $p.accounts.MicrosoftActiveDirectory.userPrincipalName 
@@ -258,12 +258,11 @@ $result = [PSCustomObject]@{
     AuditLogs        = $auditLogs
     Account          = $account
 
-     # Optionally return data for use in other systems
-     ExportData = [PSCustomObject]@{
-        DisplayName = $account.DisplayName;
-        Username    = $aRef.Username;
-        UserGUID    = $aRef.UserGUID;
-    };
+    # Optionally return data for use in other systems
+    #  ExportData = [PSCustomObject]@{
+    #     Username    = $aRef.Username;
+    #     UserGUID    = $aRef.UserGUID;
+    # };
 }
 
 Write-Output $result | ConvertTo-Json -Depth 10
