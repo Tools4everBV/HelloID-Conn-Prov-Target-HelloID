@@ -15,7 +15,7 @@ $dynamicPermissions = New-Object Collections.Generic.List[PSCustomObject];
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
-$VerbosePreference = "SilentlyContinue"
+$VerbosePreference = "Continue"
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
@@ -35,6 +35,7 @@ function Remove-StringLatinCharacters
 #region Change mapping here
 $desiredPermissions = @{};
 foreach ($contract in $p.Contracts) {
+    Write-Verbose ("Contract in condition: {0}" -f $contract.Context.InConditions)
     if (( $contract.Context.InConditions) ) {
         try {
             $name = "helloid_" + $contract.Department.DisplayName
@@ -149,7 +150,7 @@ foreach ($permission in $desiredPermissions.GetEnumerator()) {
 
 # Compare current with desired permissions and revoke permissions
 $newCurrentPermissions = @{}
-foreach ($permission in $currentPermissions.GetEnumerator()) {    
+foreach ($permission in $currentPermissions.GetEnumerator()) {
     if (-Not $desiredPermissions.ContainsKey($permission.Value)) {
         # Revoke Membership
         if (-Not($dryRun -eq $True)) {
@@ -169,10 +170,11 @@ foreach ($permission in $currentPermissions.GetEnumerator()) {
                 if($PortalBaseUrl.EndsWith("/") -eq $false){
                     $PortalBaseUrl = $PortalBaseUrl + "/"
                 }
+                
                 $uri = ($PortalBaseUrl + "api/v1/groups/" + ($GroupGUID))
                 $group = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers
 
-                $removeUsersUri = ($PortalBaseUrl + 'api/v1/groups/' + $($group.groupGuid) + '/users' + $($aRef.UserGUID))
+                $removeUsersUri = ($PortalBaseUrl + 'api/v1/groups/' + $($group.groupGuid) + '/users/' + $($aRef.UserGUID))
                 $removeMembership = Invoke-RestMethod -Method Delete -Uri $removeUsersUri -Headers $headers -ContentType "application/json" -Verbose:$false
             }
             catch {
