@@ -1,3 +1,9 @@
+########################################################################
+# HelloID-Conn-Prov-Target-HelloID
+#
+# Version: 1.0.0
+########################################################################
+
 $c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
 $m = $manager | ConvertFrom-Json
