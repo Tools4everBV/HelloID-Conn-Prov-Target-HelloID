@@ -1,3 +1,9 @@
+########################################################################
+# HelloID-Conn-Prov-Target-HelloID
+#
+# Version: 1.0.0
+########################################################################
+
 $c = $configuration | ConvertFrom-Json
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2

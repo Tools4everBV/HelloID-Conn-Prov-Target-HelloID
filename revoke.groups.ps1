@@ -1,3 +1,9 @@
+########################################################################
+# HelloID-Conn-Prov-Target-HelloID
+#
+# Version: 1.0.0
+########################################################################
+
 #region Initialize default properties
 $c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json;
