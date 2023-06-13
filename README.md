@@ -4,7 +4,7 @@
 <br />
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/69046642/164450984-8bfae142-45e5-4aa3-8a79-3d44de8bcc7b.png">
+  <img src="https://www.tools4ever.nl/connector-logos/helloid-logo.png">
 </p>
 
 
