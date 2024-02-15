@@ -1,216 +1,392 @@
-########################################################################
-# HelloID-Conn-Prov-Target-HelloID
-#
-# Version: 1.0.0
-########################################################################
+#################################################
+# HelloID-Conn-Prov-Target-HelloID-Update
+# PowerShell V2
+#################################################
 
-$c = $configuration | ConvertFrom-Json
-$p = $person | ConvertFrom-Json
-$m = $manager | ConvertFrom-Json
-$aRef = $accountReference | ConvertFrom-Json
-$mRef = $managerAccountReference | ConvertFrom-Json
-$success = $false
-$auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
-
-$VerbosePreference = "SilentlyContinue"
+# Set debug logging
+switch ($actionContext.Configuration.isDebug) {
+    $true { $VerbosePreference = "Continue" }
+    $false { $VerbosePreference = "SilentlyContinue" }
+}
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# Used to connect to Exchange Online using user credentials (MFA not supported).
-$portalBaseUrl = $c.portalBaseUrl
-$apiKey = $c.apiKey
-$apiSecret = $c.apiSecret
-$restoreSoftDeletedUsers = $c.restoreSoftDeletedUsers
-$overwritePasswordOnUpdate = $c.overwritePasswordOnUpdate
-
 #region functions
-# Write functions logic here
-# Not the best implementation method, but it does work. Useful generating a random password with the Cloud Agent since [System.Web] is not available.
-function New-RandomPassword {
-    param(
-        [parameter(Mandatory = $false)]
-        [Int]$Length = 8
+function Invoke-HelloIDRestMethod {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Method,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Uri,
+
+        [object]
+        $Body,
+
+        [string]
+        $ContentType = "application/json",
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers
     )
 
-    # Set a length of 8 as a minimum
-    if($Length -lt 8) {$Length = 8}
-        
-    # Used to store an array of characters that can be used for the password
-    $CharPool = [System.Collections.ArrayList]::new()
+    process {
+        try {
+            $splatParams = @{
+                Uri         = $Uri
+                Headers     = $Headers
+                Method      = $Method
+                ContentType = $ContentType
+            }
 
-    # Add characters a-z to the arraylist
-    for ($index = 97; $index -le 122; $index++) { [Void]$CharPool.Add([char]$index) }
-
-    # Add characters A-Z to the arraylist
-    for ($index = 65; $index -le 90; $index++) { [Void]$CharPool.Add([Char]$index) }
-
-    # Add digits 0-9 to the arraylist
-    $CharPool.AddRange(@("0","1","2","3","4","5","6","7","8","9"))
-        
-    # Add a range of special characters to the arraylist
-    $CharPool.AddRange(@("!","""","#","$","%","&","'","(",")","*","+","-",".","/",":",";","<","=",">","?","@","[","\","]","^","_","{","|","}","~","!"))
-        
-    $password = ""
-    $random = [System.Random]::new()
-        
-    # Generate password by appending a random value from the array list until desired length of password is reached
-    1..$Length | foreach { $password = $password + $CharPool[$random.Next(0,$CharPool.Count)] }  
-
-    # Replace characters to avoid confusion
-    $password = $password.replace("o", "p")
-    $password = $password.replace("O", "P")
-    $password = $password.replace("i", "k")
-    $password = $password.replace("I", "K")
-    $password = $password.replace("0", "9")
-    $password = $password.replace("l", "m")
-    $password = $password.replace("L", "M")
-    $password = $password.replace("|", "_")
-    $password = $password.replace("``", "_")
-    $password = $password.replace("`"", "R")
-    $password = $password.replace("<", "F")
-    $password = $password.replace(">", "v")  
-
-    # Output password
-    Write-Output $password
-}
-#endregion functions
-
-# Change mapping here
-$account = [PSCustomObject]@{
-    userGUID             = $aRef.UserGUID
-    userName             = $aRef.Username
-    firstName            = $p.Name.NickName
-    lastName             = $p.Name.FamilyName
-    contactEmail         = $p.Accounts.MicrosoftActiveDirectory.mail
-    isEnabled            = $false
-    password             = New-RandomPassword 16
-    mustChangePassword   = $false
-    managedByUserGUID    = $mRef.UserGuid # Only available after grant for manager
-    # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
-    source               = "Local"
-    userAttributes = @{
-        EmployeeId          = $p.ExternalId
-        Department          = $p.PrimaryContract.Department.DisplayName
-        Title               = $p.PrimaryContract.Title.Name
-        PhoneNumber         = $p.Contact.Business.Phone.Mobile
-        SAMAccountName      = $p.Accounts.MicrosoftActiveDirectory.sAMAccountName 
+            if ($Body) {
+                Write-Verbose "Adding body to request in utf8 byte encoding"
+                $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
+            }
+            Invoke-RestMethod @splatParams -Verbose:$false
+        }
+        catch {
+            throw $_
+        }
     }
 }
 
-# Troubleshooting
-# $account = [PSCustomObject]@{
-#     userGUID             = "ae71715a-2964-4ce6-844a-b684d61aa1e5"
-#     userName             = "user@enyoi.onmicrosoft.com"
-#     firstName            = "John"
-#     lastName             = "Doe"
-#     contactEmail         = "user@enyoi.nl"
-#     isEnabled            = $false
-#     password             = "Tools4ever!"
-#     mustChangePassword   = $true
-#     managedByUserGUID    = "a125e91f-9524-4936-85ef-7b0ccc4c8cdf" # Only available after grant for manager
-#     # If you use a sync to HelloID, make sure to specify the same source name, e.g. 'enyoi.local'
-#     source               = "Local"
-#     userAttributes = @{
-#         EmployeeId           = "12345678"
-#         Department           = "Test"
-#         Title                = "Tester"
-#         PhoneNumber          = "+3167652102"
-#         SAMAccountName      = "Test"
-#     }
-# }
-# $dryRun = $false
+function Resolve-HelloIDError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
+    )
+    process {
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq "System.Net.WebException") {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
+        try {
+            $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
+            $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
+        }
+        catch {
+            $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
+        }
+        Write-Output $httpErrorObj
+    }
+}
+#endregion
 
-# Update user
-try{
-    if(-Not($dryRun -eq $True)) {
-        # Create authorization headers with HelloID API key
-        $pair = "${apiKey}:${apiSecret}"
+#region Account mapping
+$account = [PSCustomObject]$actionContext.Data
+
+# Convert isEnabled to boolean
+if (-not[String]::IsNullOrEmpty($account.isEnabled)) {
+    $account.isEnabled = [System.Convert]::ToBoolean($account.isEnabled)
+}
+
+# If option to set manager isn't toggled, remove from account object
+if ($false -eq $actionContext.Configuration.setManager) {
+    $account.PSObject.Properties.Remove("managedByUserGUID")
+}
+else {
+    # Add manager userGUID to account object
+    # Note: this is only available after granting the account for the manager
+    $account.managedByUserGUID = $actionContext.References.ManagerAccount.userGUID
+}
+
+# If option to update username isn't toggled, remove from account object
+if ($false -eq $actionContext.Configuration.updateUserName) {
+    $account.PSObject.Properties.Remove("userName")
+}
+#endregion Account mapping
+
+try {
+    $correlationField = "userGUID"
+    $correlationValue = $actionContext.References.Account
+
+    # Verify if [aRef] has a value
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+
+    # Create authorization headers with HelloID API key
+    try {
+        Write-Verbose "Creating authorization headers with HelloID API key"
+
+        $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
         $base64 = [System.Convert]::ToBase64String($bytes)
         $key = "Basic $base64"
-        $headers = @{"authorization" = $Key}
+        $headers = @{"authorization" = $Key }
 
-        # Define specific endpoint URI
-        if($PortalBaseUrl.EndsWith("/") -eq $false){
-            $PortalBaseUrl = $PortalBaseUrl + "/"
-        }
-        $uri = ($PortalBaseUrl +"api/v1/users/")
-
-        Write-Verbose "Updating account $($account.Username) ($($account.UserGUID))"
-
-        # restore soft deleted user
-        if($restoreSoftDeletedUsers -eq $true -and $correlateResponse.IsDeleted -eq $true){
-            $account | Add-Member -MemberType NoteProperty -Name isSoftDeleted -Value $false -Force
-        }
-
-        # Remove password property to prevent overwrite of current password
-        if($overwritePasswordOnUpdate -eq $false){
-            Write-Information "Configuration is set to NOT overwrite password on update, removing password from account object"
-            $account.PSObject.Properties.Remove('password')
-        }else{
-            Write-Information "Configuration is set to overwrite password on update, password will be overwritten"
-        }
-
-        $body = $account | ConvertTo-Json -Depth 10
-        $updateUri = ($uri + "$($account.UserGUID)")
-        $updateResponse = Invoke-RestMethod -Method Put -Uri $updateUri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
-
-        # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
-        $aRef = @{
-            Username    = $updateResponse.username
-            UserGUID    = $updateResponse.userGUID
-        }
-        Write-Information "Successfully updated account $($aRef.Username) ($($aRef.UserGUID))"
-
-        $success = $true;
-        $auditLogs.Add([PSCustomObject]@{
-            Action  = "UpdateAccount"
-            Message = "Updated account $($aRef.Username) ($($aRef.UserGUID))";
-            IsError = $false;
-        }); 
+        Write-Verbose "Created authorization headers with HelloID API key"
     }
-}catch{
-    if($error[0].Exception -like "*404*"){
-        $auditLogs.Add([PSCustomObject]@{
-            Action = "UpdateAccount"
-            Message = "Error updating account $($account.Username): User not found. Check if the user still exists in HelloID and validate the aRef."
-            IsError = $True
-        });
-        Write-Warning $_;
-    }  
-    elseif($error[0].Exception -like "*401*"){
-        $auditLogs.Add([PSCustomObject]@{
-            Action = "UpdateAccount"
-            Message = "Error updating account $($account.Username): $($_). Check configuration settings and/or IP restrictions."
-            IsError = $True
-        });
-        Write-Warning $_;
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        }
+        else {
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        }
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw $auditMessage   
     }
-    else{
-        $auditLogs.Add([PSCustomObject]@{
-            Action = "UpdateAccount"
-            Message = "Error updating account $($account.Username): $($_)"
-            IsError = $True
-        });
-        Write-Warning $_;
+
+    # Get current account
+    try {
+        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        $queryUserSplatParams = @{
+            Uri         = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
+            Headers     = $headers
+            Method      = "GET"
+            ContentType = "application/json;charset=utf-8"
+            # UseBasicParsing = $true
+            Verbose     = $false
+            ErrorAction = "Stop"
+        }
+
+        $correlatedAccount = Invoke-HelloIDRestMethod @queryUserSplatParams
+    }
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+
+            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        }
+        else {
+            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        }
+
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw $auditMessage
+    }
+
+    # Always compare the account against the current account in target system
+    if (($correlatedAccount | Measure-Object).count -eq 1) {
+        # Create reference object from correlated account and remove depth from userAttributes
+        $referenceObject = $correlatedAccount.PSObject.Copy()
+        foreach ($userAttribute in $referenceObject.userAttributes.PSObject.Properties) {
+            $referenceObject | Add-Member -MemberType NoteProperty -Name "userAttributes_$($userAttribute.Name)" -Value $userAttribute.Value -Force
+        }
+        $referenceObject.PSObject.Properties.remove("userAttributes")
+        $outputContext.PreviousData = $referenceObject
+
+        # Create difference object from mapped account and remove depth from userAttributes
+        $differenceObject = $account.PSObject.Copy()
+        foreach ($userAttribute in $differenceObject.userAttributes.PSObject.Properties) {
+            $differenceObject | Add-Member -MemberType NoteProperty -Name "userAttributes_$($userAttribute.Name)" -Value $userAttribute.Value -Force
+        }
+        $differenceObject.PSObject.Properties.remove("userAttributes")
+
+        $propertiesToCompare = $differenceObject.PSObject.Properties.Name | Where-Object { $_ -ne "userGUID" }
+        $splatCompareProperties = @{
+            ReferenceObject  = $referenceObject.PSObject.Properties | Where-Object { $_.Name -in $propertiesToCompare }
+            DifferenceObject = $differenceObject.PSObject.Properties | Where-Object { $_.Name -in $propertiesToCompare }
+        }
+        $propertiesChanged = Compare-Object @splatCompareProperties -PassThru
+        $oldProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '<=' })
+        $newProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '=>' })
+
+        if ($newProperties) {
+            $action = "UpdateAccount"
+            Write-Information "Account property(s) required to update: $($newProperties.Name -join ', ')"
+        }
+        else {
+            $action = "NoChanges"
+        }
+    }
+    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
+        $action = "MultipleFound"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
+        $action = "NotFound"
+    }
+
+    # Process
+    switch ($action) {
+        "UpdateAccount" {
+            # Update account
+            try {
+                # Create custom object with old and new values (for logging)
+                $changedPropertiesObject = [PSCustomObject]@{
+                    OldValues = @{}
+                    NewValues = @{}
+                }
+
+                foreach ($oldProperty in ($oldProperties | Where-Object { $_.Name -in $newProperties.Name })) {
+                    $changedPropertiesObject.OldValues.$($oldProperty.Name) = $oldProperty.Value
+                }
+
+                foreach ($newProperty in $newProperties) {
+                    $changedPropertiesObject.NewValues.$($newProperty.Name) = $newProperty.Value
+                }
+
+                # Create account body and set with previous account data
+                $accountBody = $correlatedAccount.PSObject.Copy()
+
+                # Add the updated properties to account body
+                foreach ($newProperty in $newProperties) {
+                    if ($newProperty.Name -eq "userName") {
+                        $accountBody | Add-Member -MemberType NoteProperty -Name "IdentifierObject" -Value @{ userName = $newProperty.Value } -Force
+                    }
+                    elseif ($newProperty.Name -like "userAttributes_*") {
+                        $accountBody.userAttributes | Add-Member -MemberType NoteProperty -Name $newProperty.Name.replace("userAttributes_", "") -Value $newProperty.Value -Force
+                    }
+                    else {
+                        $accountBody.$($newProperty.Name) = $newProperty.Value
+                    }
+                }
+
+                $body = ($accountBody | ConvertTo-Json -Depth 10)
+                $updateUserSplatParams = @{
+                    Uri         = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)"
+                    Headers     = $headers
+                    Method      = "PUT"
+                    Body        = $body
+                    ContentType = "application/json;charset=utf-8"
+                    # UseBasicParsing = $true
+                    Verbose     = $false
+                    ErrorAction = "Stop"
+                }
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Updating account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                    Write-Verbose "Body: $($updateUserSplatParams.Body)"
+
+                    $updatedAccount = Invoke-HelloIDRestMethod @updateUserSplatParams
+                    $outputContext.Data = $updatedAccount
+
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Updated account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: Would update account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                    Write-Warning "DryRun: Body: $($updateUserSplatParams.Body)"
+                }
+            }
+            catch {
+                $ex = $PSItem
+                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
+                    $auditMessage = "Error updating account [$($account.userName)]. Error: $($errorObj.FriendlyMessage)"
+                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+                }
+                else {
+                    $auditMessage = "Error updating account [$($account.userName)]. Error: $($ex.Exception.Message)"
+                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+                }
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = $auditMessage
+                        IsError = $true
+                    })
+
+                # Throw terminal error
+                throw $auditMessage
+            }
+
+            break
+        }
+
+        "NoChanges" {
+            $auditMessage = "Skipped updating account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Reason: No changes."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    Message = $auditMessage
+                    IsError = $false
+                })
+            break
+
+            "DryRun: Would skip updating account [$($account.userName)]. Reason: No changes"
+        }
+
+        "MultipleFound" {
+            $auditMessage = "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the accounts are unique."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $true
+                })
+        
+            # Throw terminal error
+            throw $auditMessage
+
+            break
+        }
+
+        "NotFound" {
+            $auditMessage = "No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $true
+                })
+        
+            # Throw terminal error
+            throw $auditMessage
+
+            break
+        }
     }
 }
-
-# Send results
-$result = [PSCustomObject]@{
-    Success          = $success
-    AccountReference = $aRef
-    AuditLogs        = $auditLogs
-    Account          = $account
-
-     # Optionally return data for use in other systems
-    #  ExportData = [PSCustomObject]@{
-    #     Username    = $aRef.Username;
-    #     UserGUID    = $aRef.UserGUID;
-    # };
+catch {
+    $ex = $PSItem
+    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
 }
-
-Write-Output $result | ConvertTo-Json -Depth 10
+finally {
+    # Check if auditLogs contains errors, if no errors are found, set success to true
+    if ($outputContext.AuditLogs.IsError -contains $true) {
+        $outputContext.Success = $false
+    }
+    else {
+        $outputContext.Success = $true
+    }
+}

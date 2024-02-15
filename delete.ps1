@@ -1,113 +1,299 @@
-﻿########################################################################
-# HelloID-Conn-Prov-Target-HelloID
-#
-# Version: 1.0.0
-########################################################################
+#################################################
+# HelloID-Conn-Prov-Target-HelloID-Delete
+# PowerShell V2
+#################################################
 
-$c = $configuration | ConvertFrom-Json
-$p = $person | ConvertFrom-Json;
-$m = $manager | ConvertFrom-Json;
-$aRef = $accountReference | ConvertFrom-Json;
-$mRef = $managerAccountReference | ConvertFrom-Json;
-$success = $false
-$auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
-
-$VerbosePreference = "SilentlyContinue"
+# Set debug logging
+switch ($actionContext.Configuration.isDebug) {
+    $true { $VerbosePreference = "Continue" }
+    $false { $VerbosePreference = "SilentlyContinue" }
+}
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# Used to connect to Exchange Online using user credentials (MFA not supported).
-$portalBaseUrl = $c.portalBaseUrl
-$apiKey = $c.apiKey
-$apiSecret = $c.apiSecret
+#region functions
+function Invoke-HelloIDRestMethod {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Method,
 
-# Change mapping here
-$account = [PSCustomObject]@{
-    userName             = $aRef.Username
-    userGUID             = $aRef.UserGUID
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Uri,
+
+        [object]
+        $Body,
+
+        [string]
+        $ContentType = "application/json",
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers
+    )
+
+    process {
+        try {
+            $splatParams = @{
+                Uri         = $Uri
+                Headers     = $Headers
+                Method      = $Method
+                ContentType = $ContentType
+            }
+
+            if ($Body) {
+                Write-Verbose "Adding body to request in utf8 byte encoding"
+                $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
+            }
+            Invoke-RestMethod @splatParams -Verbose:$false
+        }
+        catch {
+            throw $_
+        }
+    }
 }
 
-# Troubleshooting
-# $account = [PSCustomObject]@{
-#     UserGuid             = "ae71715a-2964-4ce6-844a-b684d61aa1e5"
-#     Username             = "user@enyoi.onmicrosoft.com"
-# }
-# $dryRun = $false
+function Resolve-HelloIDError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
+    )
+    process {
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq "System.Net.WebException") {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
+        try {
+            $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
+            $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
+        }
+        catch {
+            $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
+        }
+        Write-Output $httpErrorObj
+    }
+}
+#endregion
 
-# Disable user
-try{
-    if(-Not($dryRun -eq $True)) {
-        # Create authorization headers with HelloID API key
-        $pair = "${apiKey}:${apiSecret}"
+try {
+    $correlationField = "userGUID"
+    $correlationValue = $actionContext.References.Account
+
+    # Verify if [aRef] has a value
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+
+    # Create authorization headers with HelloID API key
+    try {
+        Write-Verbose "Creating authorization headers with HelloID API key"
+
+        $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
         $base64 = [System.Convert]::ToBase64String($bytes)
         $key = "Basic $base64"
-        $headers = @{"authorization" = $Key}
+        $headers = @{"authorization" = $Key }
 
-        # Define specific endpoint URI
-        if($PortalBaseUrl.EndsWith("/") -eq $false){
-            $PortalBaseUrl = $PortalBaseUrl + "/"
+        Write-Verbose "Created authorization headers with HelloID API key"
+    }
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
         }
-        $uri = ($PortalBaseUrl +"api/v1/users/")
+        else {
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        }
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
 
-        Write-Verbose "Deleting account $($account.Username) ($($account.UserGUID))"
-
-        $body = $account | ConvertTo-Json -Depth 10
-        $deleteUri = ($uri + "$($account.UserGUID)")
-        $deleteResponse = Invoke-RestMethod -Method Delete -Uri $deleteUri -Headers $headers -Verbose:$false
-
-        Write-Information "Successfully deleted account $($aRef.Username) ($($aRef.UserGUID))"
-
-        $success = $true;
-        $auditLogs.Add([PSCustomObject]@{
-            Action  = "DeleteAccount"
-            Message = "Deleted account $($aRef.Username) ($($aRef.UserGUID))";
-            IsError = $false;
-        }); 
+        # Throw terminal error
+        throw $auditMessage   
     }
-}catch{
-    if($error[0].Exception -like "*404*"){
-        $auditLogs.Add([PSCustomObject]@{
-            Action = "DeleteAccount"
-            Message = "Error deleting account $($account.Username): User not found. Check if the user still exists in HelloID and validate the aRef."
-            IsError = $True
-        });
-        Write-Warning $_;
-    }  
-    elseif($error[0].Exception -like "*401*"){
-        $auditLogs.Add([PSCustomObject]@{
-            Action = "DeleteAccount"
-            Message = "Error deleting account $($account.Username): $($_). Check configuration settings and/or IP restrictions."
-            IsError = $True
-        });
-        Write-Warning $_;
+
+    # Get current account
+    try {
+        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        $queryUserSplatParams = @{
+            Uri         = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
+            Headers     = $headers
+            Method      = "GET"
+            ContentType = "application/json;charset=utf-8"
+            # UseBasicParsing = $true
+            Verbose     = $false
+            ErrorAction = "Stop"
+        }
+
+        $correlatedAccount = Invoke-HelloIDRestMethod @queryUserSplatParams
+        $outputContext.PreviousData = $correlatedAccount
     }
-    else{
-        $auditLogs.Add([PSCustomObject]@{
-            Action = "DeleteAccount"
-            Message = "Error deleting account $($account.Username): $($_)"
-            IsError = $True
-        });
-        Write-Warning $_;
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+
+            if ($errorObj.FriendlyMessage -eq "User not found") {
+                Write-Warning "No account found where [$($correlationField)] = [$($correlationValue)]"
+            }
+            else {
+                $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($errorObj.FriendlyMessage)"
+                Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+            }
+        }
+        else {
+            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        }
+        
+        if ($errorObj.FriendlyMessage -ne "User not found") {
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $true
+                })
+
+            # Throw terminal error
+            throw $auditMessage
+        }
+    }
+
+    # Always compare the account against the current account in target system
+    if (($correlatedAccount | Measure-Object).count -eq 1) {
+        $action = "DeleteAccount"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
+        $action = "MultipleFound"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
+        $action = "NotFound"
+    }
+
+    # Process
+    switch ($action) {
+        "DeleteAccount" {
+            # Delete account
+            try {
+                $deleteUserSplatParams = @{
+                    Uri         = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)"
+                    Headers     = $headers
+                    Method      = "DELETE"
+                    ContentType = "application/json;charset=utf-8"
+                    # UseBasicParsing = $true
+                    Verbose     = $false
+                    ErrorAction = "Stop"
+                }
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Deleting account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
+
+                    $deletedAccount = Invoke-HelloIDRestMethod @deleteUserSplatParams
+
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Deleted account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: Would delete account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
+                }
+            }
+            catch {
+                $ex = $PSItem
+                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
+                    $auditMessage = "Error deleting account [$($account.userName)]. Error: $($errorObj.FriendlyMessage)"
+                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+                }
+                else {
+                    $auditMessage = "Error deleting account [$($account.userName)]. Error: $($ex.Exception.Message)"
+                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+                }
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = $auditMessage
+                        IsError = $true
+                    })
+
+                # Throw terminal error
+                throw $auditMessage
+            }
+
+            break
+        }
+
+        "MultipleFound" {
+            $auditMessage = "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the accounts are unique."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $true
+                })
+        
+            # Throw terminal error
+            throw $auditMessage
+
+            break
+        }
+
+        "NotFound" {
+            $auditMessage = "Skipped deleting account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Reason: No No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $false
+                })
+        
+            # Throw terminal error
+            throw $auditMessage
+
+            break
+        }
     }
 }
-
-# Send results
-$result = [PSCustomObject]@{
-    Success          = $success
-    AccountReference = $aRef
-    AuditLogs        = $auditLogs
-    Account          = $account
-
-     # Optionally return data for use in other systems
-     ExportData = [PSCustomObject]@{
-        DisplayName = $account.DisplayName;
-        Username    = $aRef.Username;
-        UserGUID    = $aRef.UserGUID;
-    };
+catch {
+    $ex = $PSItem
+    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
 }
-
-Write-Output $result | ConvertTo-Json -Depth 10
+finally {
+    # Check if auditLogs contains errors, if no errors are found, set success to true
+    if ($outputContext.AuditLogs.IsError -contains $true) {
+        $outputContext.Success = $false
+    }
+    else {
+        $outputContext.Success = $true
+    }
+}
