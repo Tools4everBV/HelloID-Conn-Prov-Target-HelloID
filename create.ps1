@@ -36,23 +36,67 @@ function Invoke-HelloIDRestMethod {
 
         [Parameter(Mandatory)]
         [System.Collections.IDictionary]
-        $Headers
+        $Headers,
+
+        [Parameter()]
+        [Boolean]
+        $UsePaging = $false,
+
+        [Parameter()]
+        [Int]
+        $Skip = 0,
+
+        [Parameter()]
+        [Int]
+        $Take = 1000,
+
+        [Parameter()]
+        [Int]
+        $TimeoutSec = 60
     )
 
     process {
         try {
             $splatParams = @{
-                Uri         = $Uri
-                Headers     = $Headers
-                Method      = $Method
-                ContentType = $ContentType
+                Uri             = $Uri
+                Headers         = $Headers
+                Method          = $Method
+                ContentType     = $ContentType
+                TimeoutSec      = 60
+                UseBasicParsing = $true
+                Verbose         = $false
+                ErrorAction     = "Stop"
             }
 
             if ($Body) {
                 Write-Verbose "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
-            Invoke-RestMethod @splatParams -Verbose:$false
+
+            if ($UsePaging -eq $true) {
+                $result = [System.Collections.ArrayList]@()
+                $startUri = $splatParams.Uri
+                do {
+                    $splatParams["Uri"] = $startUri + "?take=$($take)&skip=$($skip)"
+                    $response = (Invoke-RestMethod @splatParams)
+                    if ([bool]($response.PSobject.Properties.name -eq "data")) {
+                        $response = $response.data
+                    }
+                    if ($response -is [array]) {
+                        [void]$result.AddRange($response)
+                    }
+                    else {
+                        [void]$result.Add($response)
+                    }
+        
+                    $skip += $take
+                } while (($response | Measure-Object).Count -eq $take)
+            }
+            else {
+                $result = Invoke-RestMethod @splatParams
+            }
+
+            Write-Output $result
         }
         catch {
             throw $_
@@ -87,7 +131,13 @@ function Resolve-HelloIDError {
         }
         try {
             $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
-            $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
+            # error message can be either in [resultMsg] or [message]
+            if ([bool]($errorDetailsObject.PSobject.Properties.name -eq "resultMsg")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
+            }
+            elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "message")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.message
+            }
         }
         catch {
             $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
@@ -95,7 +145,7 @@ function Resolve-HelloIDError {
         Write-Output $httpErrorObj
     }
 }
-#endregion
+#endregion functions
 
 #region Account mapping
 $account = [PSCustomObject]$actionContext.Data
@@ -114,12 +164,12 @@ else {
     # If option to set manager isn't toggled, remove from account object
     $account.PSObject.Properties.Remove("managedByUserGUID")
 }
+
+# AccountReference must have a value
+$outputContext.AccountReference = "Currently not available"
 #endregion Account mapping
 
 try {
-    # AccountReference must have a value
-    $outputContext.AccountReference = "Currently not available"
-
     # Validate correlation configuration
     if ($actionContext.CorrelationConfiguration.Enabled) {
         $correlationField = $actionContext.CorrelationConfiguration.accountField
@@ -232,14 +282,10 @@ try {
                 $accountBody = $account.PSObject.Copy()
                 $body = ($accountBody | ConvertTo-Json -Depth 10)
                 $createUserSplatParams = @{
-                    Uri         = "$($actionContext.Configuration.baseUrl)/users"
-                    Headers     = $headers
-                    Method      = "POST"
-                    Body        = $body
-                    ContentType = "application/json;charset=utf-8"
-                    # UseBasicParsing = $true
-                    Verbose     = $false
-                    ErrorAction = "Stop"
+                    Uri     = "$($actionContext.Configuration.baseUrl)/users"
+                    Headers = $headers
+                    Method  = "POST"
+                    Body    = $body
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
@@ -247,12 +293,12 @@ try {
                     Write-Verbose "Body: $($createUserSplatParams.body)"
 
                     $createdAccount = Invoke-HelloIDRestMethod @createUserSplatParams
-                    $outputContext.AccountReference = $correlatedAccount.userGUID
+                    $outputContext.AccountReference = $createdAccount.userGUID
                     $outputContext.Data = $createdAccount
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Created account [$($account.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json)"
+                            Message = "Created account [$($account.Username)] with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)"
                             IsError = $false
                         })
                 }
@@ -292,7 +338,7 @@ try {
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     Action  = "CorrelateAccount" # Optionally specify a different action for this audit log
-                    Message = "Correlated account: [$($correlatedAccount.userGUID)] on field: [$($correlationField)] with value: [$($correlationValue)]"
+                    Message = "Correlated to account [$($correlatedAccount.Username)] with AccountReference: $($outputContext.AccountReference | ConvertTo-Json) on field: [$($correlationField)] with value: [$($correlationValue)]"
                     IsError = $false
                 })
 

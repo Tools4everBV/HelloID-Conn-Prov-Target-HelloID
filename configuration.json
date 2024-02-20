@@ -15,9 +15,9 @@
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "Api Key",
+      "label": "Api key",
       "placeholder": "ABCDEGJKABCDEFGHIJKNQHUZLZTVWXYZ",
-      "description": "The API Key of your HelloID tenant",
+      "description": "The API key of your HelloID tenant",
       "required": true
     }
   },
@@ -26,10 +26,10 @@
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "Api Secret",
+      "label": "Api secret",
       "type": "password",
       "placeholder": "AbcDEBBaVNdkFgHiJKsWMYScVMtVWXYZ",
-      "description": "The API Secret of your HelloID tenant",
+      "description": "The API secret of your HelloID tenant",
       "required": true
     }
   },

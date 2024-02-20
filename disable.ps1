@@ -36,23 +36,67 @@ function Invoke-HelloIDRestMethod {
 
         [Parameter(Mandatory)]
         [System.Collections.IDictionary]
-        $Headers
+        $Headers,
+
+        [Parameter()]
+        [Boolean]
+        $UsePaging = $false,
+
+        [Parameter()]
+        [Int]
+        $Skip = 0,
+
+        [Parameter()]
+        [Int]
+        $Take = 1000,
+
+        [Parameter()]
+        [Int]
+        $TimeoutSec = 60
     )
 
     process {
         try {
             $splatParams = @{
-                Uri         = $Uri
-                Headers     = $Headers
-                Method      = $Method
-                ContentType = $ContentType
+                Uri             = $Uri
+                Headers         = $Headers
+                Method          = $Method
+                ContentType     = $ContentType
+                TimeoutSec      = 60
+                UseBasicParsing = $true
+                Verbose         = $false
+                ErrorAction     = "Stop"
             }
 
             if ($Body) {
                 Write-Verbose "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
-            Invoke-RestMethod @splatParams -Verbose:$false
+
+            if ($UsePaging -eq $true) {
+                $result = [System.Collections.ArrayList]@()
+                $startUri = $splatParams.Uri
+                do {
+                    $splatParams["Uri"] = $startUri + "?take=$($take)&skip=$($skip)"
+                    $response = (Invoke-RestMethod @splatParams)
+                    if ([bool]($response.PSobject.Properties.name -eq "data")) {
+                        $response = $response.data
+                    }
+                    if ($response -is [array]) {
+                        [void]$result.AddRange($response)
+                    }
+                    else {
+                        [void]$result.Add($response)
+                    }
+        
+                    $skip += $take
+                } while (($response | Measure-Object).Count -eq $take)
+            }
+            else {
+                $result = Invoke-RestMethod @splatParams
+            }
+
+            Write-Output $result
         }
         catch {
             throw $_
@@ -87,7 +131,13 @@ function Resolve-HelloIDError {
         }
         try {
             $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
-            $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
+            # error message can be either in [resultMsg] or [message]
+            if ([bool]($errorDetailsObject.PSobject.Properties.name -eq "resultMsg")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
+            }
+            elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "message")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.message
+            }
         }
         catch {
             $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
@@ -95,7 +145,7 @@ function Resolve-HelloIDError {
         Write-Output $httpErrorObj
     }
 }
-#endregion
+#endregion functions
 
 #region Account mapping
 $account = [PSCustomObject]$actionContext.Data
@@ -121,10 +171,12 @@ if ($false -eq $actionContext.Configuration.updateUserName) {
 }
 #endregion Account mapping
 
-try {
-    $correlationField = "userGUID"
-    $correlationValue = $actionContext.References.Account
+#region Correlation mapping
+$correlationField = "userGUID"
+$correlationValue = $actionContext.References.Account
+#endregion Correlation mapping
 
+try {
     # Verify if [aRef] has a value
     if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
         throw "The account reference could not be found"
@@ -168,13 +220,9 @@ try {
     try {
         Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
         $queryUserSplatParams = @{
-            Uri         = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
-            Headers     = $headers
-            Method      = "GET"
-            ContentType = "application/json;charset=utf-8"
-            # UseBasicParsing = $true
-            Verbose     = $false
-            ErrorAction = "Stop"
+            Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
+            Headers = $headers
+            Method  = "GET"
         }
 
         $correlatedAccount = Invoke-HelloIDRestMethod @queryUserSplatParams
@@ -288,18 +336,14 @@ try {
 
                 $body = ($accountBody | ConvertTo-Json -Depth 10)
                 $updateUserSplatParams = @{
-                    Uri         = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)"
-                    Headers     = $headers
-                    Method      = "PUT"
-                    Body        = $body
-                    ContentType = "application/json;charset=utf-8"
-                    # UseBasicParsing = $true
-                    Verbose     = $false
-                    ErrorAction = "Stop"
+                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)"
+                    Headers = $headers
+                    Method  = "PUT"
+                    Body    = $body
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Updating account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                    Write-Verbose "Updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
                     Write-Verbose "Body: $($updateUserSplatParams.Body)"
 
                     $updatedAccount = Invoke-HelloIDRestMethod @updateUserSplatParams
@@ -307,12 +351,12 @@ try {
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Updated account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                            Message = "Updated account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would update account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                    Write-Warning "DryRun: Would update account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
                     Write-Warning "DryRun: Body: $($updateUserSplatParams.Body)"
                 }
             }
@@ -342,15 +386,14 @@ try {
         }
 
         "NoChanges" {
-            $auditMessage = "Skipped updating account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Reason: No changes."
+            $auditMessage = "Skipped updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No changes."
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     Message = $auditMessage
                     IsError = $false
                 })
+                
             break
-
-            "DryRun: Would skip updating account [$($account.userName)]. Reason: No changes"
         }
 
         "MultipleFound" {
@@ -369,16 +412,13 @@ try {
         }
 
         "NotFound" {
-            $auditMessage = "Skipped updating account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Reason: No No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
+            $auditMessage = "Skipped updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
                     Message = $auditMessage
                     IsError = $false
                 })
-        
-            # Throw terminal error
-            throw $auditMessage
 
             break
         }

@@ -139,23 +139,6 @@
       ]
     },
     {
-      "Name": "userGUID",
-      "Description": "[Required] Set within script",
-      "Type": "Text",
-      "MappingActions": [
-        {
-          "MapForActions": [
-            "Create",
-            "Update"
-          ],
-          "MappingMode": "None",
-          "Value": "\"\"",
-          "UsedInNotifications": false,
-          "StoreInAccountData": false
-        }
-      ]
-    },
-    {
       "Name": "source",
       "Description": "",
       "Type": "Text",
@@ -223,6 +206,23 @@
       ]
     },
     {
+      "Name": "userGUID",
+      "Description": "[Required] Set within script",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "None",
+          "Value": "\"\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
       "Name": "userAttributes.description",
       "Description": "",
       "Type": "Text",
@@ -232,7 +232,7 @@
             "Create"
           ],
           "MappingMode": "Complex",
-          "Value": "\"const formatedTimestamp = () => {\\n    const currentDate = new Date()\\n    const date = currentDate.toISOString().split('T')[0];\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\n    return `${date} ${time}`\\n}\\n\\nfunction getDescription() {\\n    let formattedDate = formatedTimestamp();\\n    let description = \\\"Created by HelloID Provisioning at: \\\" + formattedDate\\n    return description;\\n}\\n\\ngetDescription();\"",
+          "Value": "\"function formattedTimestamp() {\\n    const currentDate = new Date()\\n    const date = currentDate.toISOString().split('T')[0];\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\n    return `${date} ${time}`\\n}\\n\\nfunction getDescription() {\\n    let formattedDate = formattedTimestamp();\\n    let description = \\\"Created by HelloID Provisioning at: \\\" + formattedDate\\n    return description;\\n}\\n\\ngetDescription();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         },
@@ -241,7 +241,7 @@
             "Enable"
           ],
           "MappingMode": "Complex",
-          "Value": "\"const formatedTimestamp = () => {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formatedTimestamp();\\r\\n    let description = \\\"Enabled by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
+          "Value": "\"function formattedTimestamp() {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formattedTimestamp();\\r\\n    let description = \\\"Enabled by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         },
@@ -250,7 +250,7 @@
             "Update"
           ],
           "MappingMode": "Complex",
-          "Value": "\"const formatedTimestamp = () => {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formatedTimestamp();\\r\\n    let description = \\\"Updated by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
+          "Value": "\"function formattedTimestamp() {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formattedTimestamp();\\r\\n    let description = \\\"Updated by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         },
@@ -259,7 +259,7 @@
             "Disable"
           ],
           "MappingMode": "Complex",
-          "Value": "\"const formatedTimestamp = () => {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formatedTimestamp();\\r\\n    let description = \\\"Disabled by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
+          "Value": "\"function formattedTimestamp() {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formattedTimestamp();\\r\\n    let description = \\\"Disabled by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         }
