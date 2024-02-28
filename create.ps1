@@ -151,18 +151,22 @@ function Resolve-HelloIDError {
 $account = [PSCustomObject]$actionContext.Data
 
 # Convert isEnabled to boolean
-if (-not[String]::IsNullOrEmpty($account.isEnabled)) {
+if ($account.PSObject.Properties.Name -Contains 'isEnabled' -and -not[String]::IsNullOrEmpty($account.isEnabled)) {
     $account.isEnabled = [System.Convert]::ToBoolean($account.isEnabled)
 }
 
-# Add manager userGUID to account object
+# If option to set manager is toggled, Add manager userGUID to account object
 # Note: this is only available after granting the account for the manager
 if ($true -eq $actionContext.Configuration.setManager) {
-    $account.managedByUserGUID = $actionContext.References.ManagerAccount
+    if ($account.PSObject.Properties.Name -Contains 'managedByUserGUID') { 
+        $account.managedByUserGUID = $actionContext.References.ManagerAccount
+    }
 }
 else {
     # If option to set manager isn't toggled, remove from account object
-    $account.PSObject.Properties.Remove("managedByUserGUID")
+    if ($account.PSObject.Properties.Name -Contains 'managedByUserGUID') { 
+        $account.PSObject.Properties.Remove("managedByUserGUID")
+    }
 }
 
 # AccountReference must have a value
