@@ -158,7 +158,7 @@ if (-not[String]::IsNullOrEmpty($account.isEnabled)) {
 # Add manager userGUID to account object
 # Note: this is only available after granting the account for the manager
 if ($true -eq $actionContext.Configuration.setManager) {
-    $account.managedByUserGUID = $actionContext.References.ManagerAccount.userGUID
+    $account.managedByUserGUID = $actionContext.References.ManagerAccount
 }
 else {
     # If option to set manager isn't toggled, remove from account object

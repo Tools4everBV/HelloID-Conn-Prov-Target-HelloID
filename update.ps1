@@ -162,7 +162,7 @@ if ($false -eq $actionContext.Configuration.setManager) {
 else {
     # Add manager userGUID to account object
     # Note: this is only available after granting the account for the manager
-    $account.managedByUserGUID = $actionContext.References.ManagerAccount.userGUID
+    $account.managedByUserGUID = $actionContext.References.ManagerAccount
 }
 
 # If option to update username isn't toggled, remove from account object
