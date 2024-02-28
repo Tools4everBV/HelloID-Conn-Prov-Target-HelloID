@@ -132,7 +132,7 @@
             "Update"
           ],
           "MappingMode": "Complex",
-          "Value": "\"function getUserName() {\\r\\n    let contactEmail = Person.Accounts._293601d233c64c199633281722723d45.UserPrincipalName;\\r\\n    return contactEmail;\\r\\n}\\r\\n\\r\\ngetUserName();\"",
+          "Value": "\"function getUserName() {\\r\\n    let userName = Person.Accounts.MicrosoftAzureAD.UserPrincipalName;\\r\\n    return userName;\\r\\n}\\r\\n\\r\\ngetUserName();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         }
@@ -199,7 +199,7 @@
             "Update"
           ],
           "MappingMode": "Complex",
-          "Value": "\"function getContactEmail() {\\n    let contactEmail = Person.Accounts._293601d233c64c199633281722723d45.UserPrincipalName;\\n    return contactEmail;\\n}\\n\\ngetContactEmail();\"",
+          "Value": "\"function getContactEmail() {\\n    let contactEmail = Person.Accounts.MicrosoftAzureAD.mail;\\n    return contactEmail;\\n}\\n\\ngetContactEmail();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         }
