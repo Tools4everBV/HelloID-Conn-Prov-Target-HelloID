@@ -174,6 +174,40 @@ $outputContext.AccountReference = "Currently not available"
 #endregion Account mapping
 
 try {
+    # Create authorization headers with HelloID API key
+    try {
+        Write-Verbose "Creating authorization headers with HelloID API key"
+
+        $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+        $base64 = [System.Convert]::ToBase64String($bytes)
+        $key = "Basic $base64"
+        $headers = @{"authorization" = $Key }
+
+        Write-Verbose "Created authorization headers with HelloID API key"
+    }
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        }
+        else {
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        }
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw $auditMessage 
+    }
+
     # Validate correlation configuration
     if ($actionContext.CorrelationConfiguration.Enabled) {
         $correlationField = $actionContext.CorrelationConfiguration.accountField
@@ -184,40 +218,6 @@ try {
         }
         if ([string]::IsNullOrEmpty($($correlationValue))) {
             throw "Correlation is enabled but [accountFieldValue] is empty. Please make sure it is correctly mapped"
-        }
-
-        # Create authorization headers with HelloID API key
-        try {
-            Write-Verbose "Creating authorization headers with HelloID API key"
-
-            $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
-            $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
-            $base64 = [System.Convert]::ToBase64String($bytes)
-            $key = "Basic $base64"
-            $headers = @{"authorization" = $Key }
-
-            Write-Verbose "Created authorization headers with HelloID API key"
-        }
-        catch {
-            $ex = $PSItem
-            if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-                $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-                $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
-                Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-            }
-            else {
-                $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
-                Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-            }
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $true
-                })
-
-            # Throw terminal error
-            throw $auditMessage 
         }
     
         # Verify if a user must be either [created ] or just [correlated]
