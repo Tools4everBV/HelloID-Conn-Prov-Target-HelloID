@@ -1,5 +1,5 @@
-########################################################################
-# HelloID-Conn-Prov-Target-HelloID-Grant-Groups
+######################################################
+# HelloID-Conn-Prov-Target-HelloID-Dynamic-Permissions-Groups
 # PowerShell V2
 ######################################################
 
@@ -145,19 +145,27 @@ function Resolve-HelloIDError {
         Write-Output $httpErrorObj
     }
 }
+
+function Remove-StringLatinCharacters {
+    PARAM ([string]$String)
+    [Text.Encoding]::ASCII.GetString([Text.Encoding]::GetEncoding("Cyrillic").GetBytes($String))
+}
 #endregion functions
+
+# Determine all the sub-permissions that needs to be Granted/Updated/Revoked
+$currentPermissions = @{ }
+foreach ($permission in $actionContext.CurrentPermissions) {
+    $currentPermissions[$permission.Reference.Id] = $permission.DisplayName
+}
 
 #region Correlation mapping
 $correlationField = "userGUID"
 $correlationValue = $actionContext.References.Account
+
+$permissionCorrelationField = "name"
 #endregion Correlation mapping
 
 try {
-    # Verify if [aRef] has a value
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-
     # Create authorization headers with HelloID API key
     try {
         Write-Verbose "Creating authorization headers with HelloID API key"
@@ -189,8 +197,87 @@ try {
             })
 
         # Throw terminal error
-        throw $auditMessage   
+        throw $auditMessage 
     }
+
+    # Get groups
+    try {
+        Write-Verbose 'Querying groups'
+
+        $queryGroupsSplatParams = @{
+            Uri       = "$($actionContext.Configuration.baseUrl)/groups"
+            Headers   = $headers
+            Method    = "GET"
+            UsePaging = $true
+        }
+
+        $groups = Invoke-HelloIDRestMethod @queryGroupsSplatParams
+
+        # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
+        $groupsGrouped = $groups | Group-Object $permissionCorrelationField -AsHashTable -AsString
+
+        Write-Information "Queried groups. Result count: $(($groups | Measure-Object).Count)"
+    }
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+            $auditMessage = "Error querying groups. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        }
+        else {
+            $auditMessage = "Error querying groups. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        }
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw $auditMessage
+    }
+
+    $desiredPermissions = @{ }
+    if (-Not($actionContext.Operation -eq "revoke")) {
+        foreach ($contract in $personContext.Person.Contracts) {
+            Write-Verbose "Contract in condition: $($contract.Context.InConditions)"
+            if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $True)) {
+                # Example: department_<department externalId>
+                $groupName = "department_" + $contract.Department.ExternalId
+                $groupName = Remove-StringLatinCharacters $groupName
+
+                $permissionCorrelationValue = $groupName
+
+                Write-Verbose "Querying group where [$($permissionCorrelationField)] = [$($permissionCorrelationValue)]"
+
+                $correlatedResource = $null
+                $correlatedResource = $groupsGrouped["$($permissionCorrelationValue)"]
+
+                if (($correlatedResource | Measure-Object).count -eq 1) {
+                    # Add group to desired permissions with the id as key and the displayname as value (use id to avoid issues with name changes and for uniqueness)
+                    $desiredPermissions["$($correlatedResource.groupGuid)"] = $correlatedResource.name
+                }
+                elseif (($correlatedResource | Measure-Object).count -gt 1) {
+                    $auditMessage = "Multiple groups found where [$($permissionCorrelationField)] = [$($permissionCorrelationValue)]. Please correct this so the groups are unique."
+            
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = $auditMessage
+                            IsError = $true
+                        })
+                
+                    # Throw terminal error
+                    throw $auditMessage
+                }
+            }
+        }
+    }
+
+    Write-Warning ("Existing Permissions: {0}" -f ($eRef.CurrentPermissions.DisplayName | ConvertTo-Json))
+    Write-Warning ("Desired Permissions: {0}" -f ($desiredPermissions.Values | ConvertTo-Json))
 
     # Get current account
     try {
@@ -227,23 +314,18 @@ try {
         throw $auditMessage
     }
 
-    if (($correlatedAccount | Measure-Object).count -eq 1) {
-        $action = "GrantPermission"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
-        $action = "MultipleFound"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
-        $action = "NotFound"
-    }
+    # Compare desired with current permissions and grant permissions
+    foreach ($permission in $desiredPermissions.GetEnumerator()) {
+        $outputContext.SubPermissions.Add([PSCustomObject]@{
+                DisplayName = $permission.Value
+                Reference   = [PSCustomObject]@{ Id = $permission.Name }
+            })
 
-    # Process
-    switch ($action) {
-        "GrantPermission" {
+        if (-Not $currentPermissions.ContainsKey($permission.Name)) {
             # Grant groupmembership
             try {
                 $permissionBody = @{
-                    groupGuid = $actionContext.References.Permission.Id
+                    groupGuid = $permission.Name
                 }
 
                 $body = ($permissionBody | ConvertTo-Json -Depth 10)
@@ -255,19 +337,20 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Granting group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    group: [$($permission.Value)] with groupGuid: [$($permission.Name)]
+                    Write-Verbose "Granting group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                     Write-Verbose "Body: $($grantGroupMembershipSplatParams.Body)"
 
                     $grantedGroupMembership = Invoke-HelloIDRestMethod @grantGroupMembershipSplatParams
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Granted group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            Message = "Granted group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would grant group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Warning "DryRun: Would grant group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                     Write-Warning "DryRun: Body: $($grantGroupMembershipSplatParams.Body)"
                 }
             }
@@ -276,11 +359,11 @@ try {
                 if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
                     $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
                     $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error granting group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    $auditMessage = "Error granting group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
                     Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
                 }
                 else {
-                    $auditMessage = "Error granting group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    $auditMessage = "Error granting group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
                     Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
                 }
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
@@ -292,38 +375,61 @@ try {
                 # Throw terminal error
                 throw $auditMessage
             }
-
-            break
         }
+    }
 
-        "MultipleFound" {
-            $auditMessage = "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the accounts are unique."
+    # Compare current with desired permissions and revoke permissions
+    $newCurrentPermissions = @{ }
+    foreach ($permission in $currentPermissions.GetEnumerator()) {
+        if (-Not $desiredPermissions.ContainsKey($permission.Name) -AND $permission.Name -ne "No Groups Defined") {
+            # Revoke groupmembership
+            try {
+                $revokeGroupMembershipSplatParams = @{
+                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)/groups/$($permission.Name)"
+                    Headers = $headers
+                    Method  = "DELETE"
+                    Body    = $body
+                }
 
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $true
-                })
-        
-            # Throw terminal error
-            throw $auditMessage
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
 
-            break
+                    $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
+
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Revoked group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: Would revoke group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                }
+            }
+            catch {
+                $ex = $PSItem
+                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
+                    $auditMessage = "Error revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+                }
+                else {
+                    $auditMessage = "Error revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+                }
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = $auditMessage
+                        IsError = $true
+                    })
+
+                # Throw terminal error
+                throw $auditMessage
+            }
         }
-
-        "NotFound" {
-            $auditMessage = "No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $true
-                })
-        
-            # Throw terminal error
-            throw $auditMessage
-
-            break
+        else {
+            $newCurrentPermissions[$permission.Name] = $permission.Value
         }
     }
 }
@@ -332,6 +438,14 @@ catch {
     Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
 }
 finally {
+    # Handle case of empty defined dynamic permissions.  Without this the entitlement will error.
+    if ($actionContext.Operation -match "update|grant" -AND $outputContext.SubPermissions.count -eq 0) {
+        $outputContext.SubPermissions.Add([PSCustomObject]@{
+                DisplayName = "No Groups Defined"
+                Reference   = [PSCustomObject]@{ Id = "No Groups Defined" }
+            })
+    }
+
     # Check if auditLogs contains errors, if no errors are found, set success to true
     if ($outputContext.AuditLogs.IsError -contains $true) {
         $outputContext.Success = $false

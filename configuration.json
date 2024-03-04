@@ -1,64 +1,66 @@
 [
   {
-    "key": "portalBaseUrl",
+    "key": "baseUrl",
     "type": "input",
-    "defaultValue": "",
+    "defaultValue": "https://your-company-name.helloid.com/api/v1",
     "templateOptions": {
-      "label": "Portal Base URL",
-      "placeholder": "https://<customer_portal>.helloid.com/",
+      "label": "Base URL",
+      "placeholder": "https://your-company-name.helloid.com/api/v1",
+      "description": "The URL to the API of your HelloID tenant",
       "required": true
     }
   },
   {
-    "key": "ApiKey",
+    "key": "apiKey",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "API Key",
-      "placeholder": "NHPXRGJKABCDEQWLQYNQHUZLZTHCCFGH",
-      "description": "",
+      "label": "Api key",
+      "placeholder": "ABCDEGJKABCDEFGHIJKNQHUZLZTVWXYZ",
+      "description": "The API key of your HelloID tenant",
       "required": true
     }
   },
   {
-    "key": "ApiSecret",
+    "key": "apiSecret",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "API Secret",
+      "label": "Api secret",
       "type": "password",
-      "placeholder": "GdefgVALxYffnWrGSQsRabcThcxyYFGc",
+      "placeholder": "AbcDEBBaVNdkFgHiJKsWMYScVMtVWXYZ",
+      "description": "The API secret of your HelloID tenant",
       "required": true
     }
   },
   {
-    "key": "restoreSoftDeletedUsers",
+    "key": "setManager",
     "type": "checkbox",
     "defaultValue": false,
     "templateOptions": {
-      "label": "Restore soft deleted users",
+      "label": "Set manager",
       "required": false,
-      "description": "Restore soft deleted users on update actions (create (correlate), update, enable, disable)"
+      "description": "Please note. As we use the AccountReference of the manager for this, HelloID has to have granted the Account entitlement for the manager first."
     }
   },
   {
-    "key": "updateOnCorrelate",
+    "key": "updateUserName",
     "type": "checkbox",
     "defaultValue": false,
     "templateOptions": {
-      "label": "Update on correlation",
+      "label": "Update UserName",
       "required": false,
-      "description": "Update user account with mapped attributes upon correlation"
+      "description": ""
     }
   },
   {
-    "key": "overwritePasswordOnUpdate",
+    "key": "isDebug",
     "type": "checkbox",
     "defaultValue": false,
     "templateOptions": {
-      "label": "Overwrite password on update",
-      "required": false,
-      "description": "Overwrite the current password when updating the user account"
+      "label": "Toggle debug logging",
+      "description": "When toggled, debug logging will be displayed",
+      "required": false
     }
   }
 ]

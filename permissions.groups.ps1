@@ -1,85 +1,243 @@
-########################################################################
-# HelloID-Conn-Prov-Target-HelloID
-#
-# Version: 1.0.0
-########################################################################
+######################################################
+# HelloID-Conn-Prov-Target-HelloID-Permissions-Groups
+# PowerShell V2
+######################################################
 
-$c = $configuration | ConvertFrom-Json
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
-
-$VerbosePreference = "SilentlyContinue"
+# Set debug logging
+switch ($actionContext.Configuration.isDebug) {
+    $true { $VerbosePreference = "Continue" }
+    $false { $VerbosePreference = "SilentlyContinue" }
+}
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# variables from config
-$portalBaseUrl = $c.portalBaseUrl
-$apiKey = $c.apiKey
-$apiSecret = $c.apiSecret
- 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
- 
-$take = 1000;   
-$skip = 0;
+#region functions
+function Invoke-HelloIDRestMethod {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Method,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Uri,
+
+        [object]
+        $Body,
+
+        [string]
+        $ContentType = "application/json",
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter()]
+        [Boolean]
+        $UsePaging = $false,
+
+        [Parameter()]
+        [Int]
+        $Skip = 0,
+
+        [Parameter()]
+        [Int]
+        $Take = 1000,
+
+        [Parameter()]
+        [Int]
+        $TimeoutSec = 60
+    )
+
+    process {
+        try {
+            $splatParams = @{
+                Uri             = $Uri
+                Headers         = $Headers
+                Method          = $Method
+                ContentType     = $ContentType
+                TimeoutSec      = 60
+                UseBasicParsing = $true
+                Verbose         = $false
+                ErrorAction     = "Stop"
+            }
+
+            if ($Body) {
+                Write-Verbose "Adding body to request in utf8 byte encoding"
+                $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
+            }
+
+            if ($UsePaging -eq $true) {
+                $result = [System.Collections.ArrayList]@()
+                $startUri = $splatParams.Uri
+                do {
+                    $splatParams["Uri"] = $startUri + "?take=$($take)&skip=$($skip)"
+                    $response = (Invoke-RestMethod @splatParams)
+                    if ([bool]($response.PSobject.Properties.name -eq "data")) {
+                        $response = $response.data
+                    }
+                    if ($response -is [array]) {
+                        [void]$result.AddRange($response)
+                    }
+                    else {
+                        [void]$result.Add($response)
+                    }
+        
+                    $skip += $take
+                } while (($response | Measure-Object).Count -eq $take)
+            }
+            else {
+                $result = Invoke-RestMethod @splatParams
+            }
+
+            Write-Output $result
+        }
+        catch {
+            throw $_
+        }
+    }
+}
+
+function Resolve-HelloIDError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
+    )
+    process {
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq "System.Net.WebException") {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
+        try {
+            $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
+            # error message can be either in [resultMsg] or [message]
+            if ([bool]($errorDetailsObject.PSobject.Properties.name -eq "resultMsg")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
+            }
+            elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "message")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.message
+            }
+        }
+        catch {
+            $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
+        }
+        Write-Output $httpErrorObj
+    }
+}
+#endregion functions
+
 try {
     # Create authorization headers with HelloID API key
-    $pair = "${apiKey}:${apiSecret}"
-    $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
-    $base64 = [System.Convert]::ToBase64String($bytes)
-    $key = "Basic $base64"
-    $headers = @{"authorization" = $Key }
- 
-    # Define specific endpoint URI
-    if ($PortalBaseUrl.EndsWith("/") -eq $false) {
-        $PortalBaseUrl = $PortalBaseUrl + "/"
+    try {
+        Write-Verbose "Creating authorization headers with HelloID API key"
+
+        $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+        $base64 = [System.Convert]::ToBase64String($bytes)
+        $key = "Basic $base64"
+        $headers = @{"authorization" = $Key }
+
+        Write-Verbose "Created authorization headers with HelloID API key"
     }
-    $uri = ($PortalBaseUrl + "api/v1/groups")
- 
-
-    Write-Verbose "Searching for HelloID groups.."
-    $groups = [System.Collections.ArrayList]@();
-    $paged = $true;
-    while ($paged) {
-        $response = (Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -ContentType 'application/json' -TimeoutSec 60)
-        if ([bool]($response.PSobject.Properties.name -eq "data")) {
-            $response = $response.data
-        }
-
-        if ($response.count -lt $take) {
-            $paged = $false;
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
         }
         else {
-            $skip = $skip + $take;
-            $uri = $uri + "?take=$($take)&skip=$($skip)";
+            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
         }
-         
-        if ($response -is [array]) {
-            [void]$groups.AddRange($response);
-        }
-        else {
-            [void]$groups.Add($response);
-        }
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw $auditMessage 
     }
 
-    # Filter for only enabled and "non-deleted" groups
-    $groups = $groups | Where-Object {$_.isDeleted -eq $false -and $_.isEnabled -eq $true}
+    # Get groups
+    try {
+        Write-Verbose 'Querying groups'
 
-    Write-Information "Finished searching for HelloID groups. Found [$($groups.groupGuid.Count)] groups"
+        $queryGroupsSplatParams = @{
+            Uri       = "$($actionContext.Configuration.baseUrl)/groups"
+            Headers   = $headers
+            Method    = "GET"
+            UsePaging = $true
+        }
+
+        $groups = Invoke-HelloIDRestMethod @queryGroupsSplatParams
+
+        Write-Information "Queried groups. Result count: $(($groups | Measure-Object).Count)"
+    }
+    catch {
+        $ex = $PSItem
+        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+            $errorObj = Resolve-HelloIDError -ErrorObject $ex
+            $auditMessage = "Error querying groups. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        }
+        else {
+            $auditMessage = "Error querying groups. Error: $($ex.Exception.Message)"
+            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        }
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw $auditMessage
+    }
 }
 catch {
-    throw $_;
+    $ex = $PSItem
+    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
 }
- 
-foreach ($group in $groups) {
-    $returnObject = @{
-        DisplayName    = "Group - $($group.name)";
-        Identification = @{
-            Id = $group.groupGuid;
-            Name = $group.name;
+finally {
+    # Send results
+    foreach ($group in $groups) {
+        # Shorten DisplayName to max. 100 chars
+        $displayName = "Group - $($group.name)"
+        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
+        $permission = @{
+            DisplayName    = $displayName
+            Identification = @{
+                Id   = $group.groupGuid
+                Name = $group.name
+                Type = "Group"
+            }
         }
-    };
 
-    Write-Output $returnObject | ConvertTo-Json -Depth 10
+        $outputContext.Permissions.Add($permission)
+    }
 }

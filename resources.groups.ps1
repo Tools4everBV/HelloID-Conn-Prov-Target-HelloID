@@ -1,5 +1,5 @@
-########################################################################
-# HelloID-Conn-Prov-Target-HelloID-Revoke-Groups
+######################################################
+# HelloID-Conn-Prov-Target-HelloID-Resources-Groups
 # PowerShell V2
 ######################################################
 
@@ -145,19 +145,18 @@ function Resolve-HelloIDError {
         Write-Output $httpErrorObj
     }
 }
+
+function Remove-StringLatinCharacters {
+    PARAM ([string]$String)
+    [Text.Encoding]::ASCII.GetString([Text.Encoding]::GetEncoding("Cyrillic").GetBytes($String))
+}
 #endregion functions
 
 #region Correlation mapping
-$correlationField = "userGUID"
-$correlationValue = $actionContext.References.Account
+$correlationField = "name"
 #endregion Correlation mapping
 
 try {
-    # Verify if [aRef] has a value
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-
     # Create authorization headers with HelloID API key
     try {
         Write-Verbose "Creating authorization headers with HelloID API key"
@@ -189,34 +188,39 @@ try {
             })
 
         # Throw terminal error
-        throw $auditMessage   
+        throw $auditMessage 
     }
 
-    # Get current account
+    # Get groups
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
-        $queryUserSplatParams = @{
-            Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
-            Headers = $headers
-            Method  = "GET"
+        Write-Verbose 'Querying groups'
+
+        $queryGroupsSplatParams = @{
+            Uri       = "$($actionContext.Configuration.baseUrl)/groups"
+            Headers   = $headers
+            Method    = "GET"
+            UsePaging = $true
         }
 
-        $correlatedAccount = Invoke-HelloIDRestMethod @queryUserSplatParams
+        $groups = Invoke-HelloIDRestMethod @queryGroupsSplatParams
+
+        # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
+        $groupsGrouped = $groups | Group-Object $correlationField -AsHashTable -AsString
+
+        Write-Information "Queried groups. Result count: $(($groups | Measure-Object).Count)"
     }
     catch {
         $ex = $PSItem
         if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
             $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
             $errorObj = Resolve-HelloIDError -ErrorObject $ex
-
-            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($errorObj.FriendlyMessage)"
+            $auditMessage = "Error querying groups. Error: $($errorObj.FriendlyMessage)"
             Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
         }
         else {
-            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($ex.Exception.Message)"
+            $auditMessage = "Error querying groups. Error: $($ex.Exception.Message)"
             Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
         }
-
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
                 Message = $auditMessage
@@ -227,93 +231,101 @@ try {
         throw $auditMessage
     }
 
-    if (($correlatedAccount | Measure-Object).count -eq 1) {
-        $action = "RevokePermission"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
-        $action = "MultipleFound"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
-        $action = "NotFound"
-    }
 
-    # Process
-    switch ($action) {
-        "RevokePermission" {
-            # Revoke groupmembership
-            try {
-                $revokeGroupMembershipSplatParams = @{
-                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)/groups/$($actionContext.References.Permission.id)"
-                    Headers = $headers
-                    Method  = "DELETE"
-                    Body    = $body
+
+    foreach ($resource in $resourceContext.SourceData) {
+        Write-Verbose "Checking $($resource)"
+        # Example: department_<department externalId>
+        $groupName = "department_" + $resource.ExternalId
+        $groupName = Remove-StringLatinCharacters $groupName
+
+        $correlationValue = $groupName
+
+        Write-Verbose "Querying group where [$($correlationField)] = [$($correlationValue)]"
+
+        $correlatedResource = $null
+        $correlatedResource = $groupsGrouped["$($correlationValue)"]
+            
+        $action = $null
+        if (($correlatedResource | Measure-Object).count -eq 0) {
+            $action = "CreateResource"
+        }
+        elseif (($correlatedResource | Measure-Object).count -eq 1) {
+            $action = "CorrelateResource"
+        }
+
+        # Process
+        switch ($action) {
+            "CreateResource" {
+                # Create group
+                try {
+                    $groupBody = @{
+                        name      = $groupName
+                        isEnabled = $true
+                    }
+
+                    $body = ($groupBody | ConvertTo-Json -Depth 10)
+                    $createGroupSplatParams = @{
+                        Uri     = "$($actionContext.Configuration.baseUrl)/groups"
+                        Headers = $headers
+                        Method  = "POST"
+                        Body    = $body
+                    }
+
+                    if (-Not($actionContext.DryRun -eq $true)) {
+                        Write-Verbose "Creating group [$($groupName)]"
+                        Write-Verbose "Body: $($createGroupSplatParams.body)"
+
+                        $createdResource = Invoke-HelloIDRestMethod @createGroupSplatParams
+
+                        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                                # Action  = "" # Optional
+                                Message = "Created group: [$($groupName)] with groupGuid: [$($createdResource.groupGuid)]"
+                                IsError = $false
+                            })
+                    }
+                    else {
+                        Write-Warning "DryRun: Would create group [$($groupName)]"
+                        Write-Verbose "Body: $($createGroupSplatParams.body)"
+                    }
                 }
-
-                if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-
-                    $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
-
+                catch {
+                    $ex = $PSItem
+                    if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+                        $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+                        $errorObj = Resolve-HelloIDError -ErrorObject $ex
+                        $auditMessage = "Error creating group [$($groupName)]. Error: $($errorObj.FriendlyMessage)"
+                        Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+                    }
+                    else {
+                        $auditMessage = "Error creating group [$($groupName)]. Error: $($ex.Exception.Message)"
+                        Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+                    }
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Revoked group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                            IsError = $false
+                            Message = $auditMessage
+                            IsError = $true
                         })
+
+                    # Throw terminal error
+                    throw $auditMessage
                 }
-                else {
-                    Write-Warning "DryRun: Would revoke group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                }
+
+                break
             }
-            catch {
-                $ex = $PSItem
-                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
-                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-                }
-                else {
-                    $auditMessage = "Error revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
-                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-                }
+
+            "CorrelateResource" {      
+                $auditMessage = "Skipped creating group [$($groupName)]. Reason: Already exists."
+
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
                         Message = $auditMessage
-                        IsError = $true
+                        IsError = $false
                     })
+                    
+                Write-Warning "Skipped creating group [$($groupName)]. Reason: Already exists."
 
-                # Throw terminal error
-                throw $auditMessage
+                break
             }
-
-            break
-        }
-
-        "MultipleFound" {
-            $auditMessage = "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the accounts are unique."
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $true
-                })
-        
-            # Throw terminal error
-            throw $auditMessage
-
-            break
-        }
-
-        "NotFound" {
-            $auditMessage = "Skipped revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $false
-                })
-
-            break
         }
     }
 }
