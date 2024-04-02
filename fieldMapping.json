@@ -231,8 +231,8 @@
           "MapForActions": [
             "Create"
           ],
-          "MappingMode": "Complex",
-          "Value": "\"function formattedTimestamp() {\\n    const currentDate = new Date()\\n    const date = currentDate.toISOString().split('T')[0];\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\n    return `${date} ${time}`\\n}\\n\\nfunction getDescription() {\\n    let formattedDate = formattedTimestamp();\\n    let description = \\\"Created by HelloID Provisioning at: \\\" + formattedDate\\n    return description;\\n}\\n\\ngetDescription();\"",
+          "MappingMode": "Fixed",
+          "Value": "\"Created by HelloID Provisioning\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         },
@@ -240,17 +240,8 @@
           "MapForActions": [
             "Enable"
           ],
-          "MappingMode": "Complex",
-          "Value": "\"function formattedTimestamp() {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formattedTimestamp();\\r\\n    let description = \\\"Enabled by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
-          "UsedInNotifications": false,
-          "StoreInAccountData": true
-        },
-        {
-          "MapForActions": [
-            "Update"
-          ],
-          "MappingMode": "Complex",
-          "Value": "\"function formattedTimestamp() {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formattedTimestamp();\\r\\n    let description = \\\"Updated by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
+          "MappingMode": "Fixed",
+          "Value": "\"Enabled by HelloID Provisioning\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         },
@@ -258,8 +249,8 @@
           "MapForActions": [
             "Disable"
           ],
-          "MappingMode": "Complex",
-          "Value": "\"function formattedTimestamp() {\\r\\n    const currentDate = new Date()\\r\\n    const date = currentDate.toISOString().split('T')[0];\\r\\n    const time = currentDate.toTimeString().split(' ')[0].replace(/:/g, ':');\\r\\n    return `${date} ${time}`\\r\\n}\\r\\n\\r\\nfunction getDescription() {\\r\\n    let formattedDate = formattedTimestamp();\\r\\n    let description = \\\"Disabled by HelloID Provisioning at: \\\" + formattedDate\\r\\n    return description;\\r\\n}\\r\\n\\r\\ngetDescription();\"",
+          "MappingMode": "Fixed",
+          "Value": "\"Disabled by HelloID Provisioning\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         }
