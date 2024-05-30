@@ -268,9 +268,6 @@ try {
                             Message = $auditMessage
                             IsError = $true
                         })
-                
-                    # Throw terminal error
-                    throw $auditMessage
                 }
                 elseif (($correlatedResource | Measure-Object).count -eq 0) {
                     $auditMessage = "No group found where [$($permissionCorrelationField)] = [$($permissionCorrelationValue)]"
@@ -280,11 +277,13 @@ try {
                             Message = $auditMessage
                             IsError = $true
                         })
-                
-                    # Throw terminal error
-                    throw $auditMessage
                 }
             }
+        }
+
+        if ($outputContext.AuditLogs.IsError -contains $true) {
+            # Throw terminal error
+            throw "One or more errors occurred while looking up group(s)."
         }
     }
 
