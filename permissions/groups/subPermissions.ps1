@@ -403,7 +403,6 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    group: [$($permission.Value)] with groupGuid: [$($permission.Name)]
                     Write-Verbose "Granting group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                     Write-Verbose "Body: $($grantGroupMembershipSplatParams.Body)"
 
