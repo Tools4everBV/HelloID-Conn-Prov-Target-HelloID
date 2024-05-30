@@ -1,5 +1,5 @@
 ######################################################
-# HelloID-Conn-Prov-Target-HelloID-Dynamic-Permissions-Groups
+# HelloID-Conn-Prov-Target-HelloID-SubPermissions-Groups
 # PowerShell V2
 ######################################################
 
