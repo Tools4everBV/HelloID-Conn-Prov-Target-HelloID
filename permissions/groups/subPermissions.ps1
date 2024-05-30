@@ -344,7 +344,7 @@ try {
                     $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
+                            Action  = "RevokePermission"
                             Message = "Revoked group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                             IsError = $false
                         })
@@ -409,7 +409,7 @@ try {
                     $grantedGroupMembership = Invoke-HelloIDRestMethod @grantGroupMembershipSplatParams
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
+                            Action  = "GrantPermission"
                             Message = "Granted group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                             IsError = $false
                         })
