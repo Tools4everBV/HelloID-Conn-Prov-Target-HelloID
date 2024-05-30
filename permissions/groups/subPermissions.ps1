@@ -326,6 +326,61 @@ try {
         throw $auditMessage
     }
 
+    # Compare current with desired permissions and revoke permissions
+    $newCurrentPermissions = @{ }
+    foreach ($permission in $currentPermissions.GetEnumerator()) {
+        if (-Not $desiredPermissions.ContainsKey($permission.Name) -AND $permission.Name -ne "No Groups Defined") {
+            # Revoke groupmembership
+            try {
+                $revokeGroupMembershipSplatParams = @{
+                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)/groups/$($permission.Name)"
+                    Headers = $headers
+                    Method  = "DELETE"
+                    Body    = $body
+                }
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+
+                    $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
+
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Revoked group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: Would revoke group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                }
+            }
+            catch {
+                $ex = $PSItem
+                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
+                    $auditMessage = "Error revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+                }
+                else {
+                    $auditMessage = "Error revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+                }
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = $auditMessage
+                        IsError = $true
+                    })
+
+                # Throw terminal error
+                throw $auditMessage
+            }
+        }
+        else {
+            $newCurrentPermissions[$permission.Name] = $permission.Value
+        }
+    }
+
     # Compare desired with current permissions and grant permissions
     foreach ($permission in $desiredPermissions.GetEnumerator()) {
         $outputContext.SubPermissions.Add([PSCustomObject]@{
@@ -387,61 +442,6 @@ try {
                 # Throw terminal error
                 throw $auditMessage
             }
-        }
-    }
-
-    # Compare current with desired permissions and revoke permissions
-    $newCurrentPermissions = @{ }
-    foreach ($permission in $currentPermissions.GetEnumerator()) {
-        if (-Not $desiredPermissions.ContainsKey($permission.Name) -AND $permission.Name -ne "No Groups Defined") {
-            # Revoke groupmembership
-            try {
-                $revokeGroupMembershipSplatParams = @{
-                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)/groups/$($permission.Name)"
-                    Headers = $headers
-                    Method  = "DELETE"
-                    Body    = $body
-                }
-
-                if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-
-                    $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
-
-                    $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
-                            Message = "Revoked group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                            IsError = $false
-                        })
-                }
-                else {
-                    Write-Warning "DryRun: Would revoke group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                }
-            }
-            catch {
-                $ex = $PSItem
-                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
-                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-                }
-                else {
-                    $auditMessage = "Error revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
-                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-                }
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
-                        Message = $auditMessage
-                        IsError = $true
-                    })
-
-                # Throw terminal error
-                throw $auditMessage
-            }
-        }
-        else {
-            $newCurrentPermissions[$permission.Name] = $permission.Value
         }
     }
 }
