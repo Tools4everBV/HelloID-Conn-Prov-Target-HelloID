@@ -272,6 +272,18 @@ try {
                     # Throw terminal error
                     throw $auditMessage
                 }
+                elseif (($correlatedResource | Measure-Object).count -eq 0) {
+                    $auditMessage = "No group found where [$($permissionCorrelationField)] = [$($permissionCorrelationValue)]"
+            
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = $auditMessage
+                            IsError = $true
+                        })
+                
+                    # Throw terminal error
+                    throw $auditMessage
+                }
             }
         }
     }
