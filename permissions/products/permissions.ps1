@@ -1,7 +1,7 @@
-#################################################
-# HelloID-Conn-Prov-Target-HelloID-Delete
+######################################################
+# HelloID-Conn-Prov-Target-HelloID-Permissions-Products
 # PowerShell V2
-#################################################
+######################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -147,17 +147,7 @@ function Resolve-HelloIDError {
 }
 #endregion functions
 
-#region Correlation mapping
-$correlationField = "userGUID"
-$correlationValue = $actionContext.References.Account
-#endregion Correlation mapping
-
 try {
-    # Verify if [aRef] has a value
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-
     # Create authorization headers with HelloID API key
     try {
         Write-Verbose "Creating authorization headers with HelloID API key"
@@ -189,140 +179,47 @@ try {
             })
 
         # Throw terminal error
-        throw $auditMessage   
+        throw $auditMessage 
     }
 
-    # Get current account
+    # Get products
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
-        $queryUserSplatParams = @{
-            Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
-            Headers = $headers
-            Method  = "GET"
+        Write-Verbose 'Querying products'
+
+        $queryProductsSplatParams = @{
+            Uri       = "$($actionContext.Configuration.baseUrl)/selfservice/products"
+            Headers   = $headers
+            Method    = "GET"
+            UsePaging = $true
         }
 
-        $correlatedAccount = Invoke-HelloIDRestMethod @queryUserSplatParams
-        $outputContext.PreviousData = $correlatedAccount
+        $products = Invoke-HelloIDRestMethod @queryProductsSplatParams
+
+        # Filter for only enabled products
+        $products = $products | Where-Object { $_.isEnabled -eq $true }
+
+        Write-Information "Queried products. Result count: $(($products | Measure-Object).Count)"
     }
     catch {
         $ex = $PSItem
         if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
             $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
             $errorObj = Resolve-HelloIDError -ErrorObject $ex
-
-            if ($errorObj.FriendlyMessage -eq "User not found") {
-                Write-Warning "No account found where [$($correlationField)] = [$($correlationValue)]"
-            }
-            else {
-                $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($errorObj.FriendlyMessage)"
-                Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-            }
+            $auditMessage = "Error querying products. Error: $($errorObj.FriendlyMessage)"
+            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
         }
         else {
-            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($ex.Exception.Message)"
+            $auditMessage = "Error querying products. Error: $($ex.Exception.Message)"
             Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
         }
-        
-        if ($errorObj.FriendlyMessage -ne "User not found") {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $true
-                })
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = $auditMessage
+                IsError = $true
+            })
 
-            # Throw terminal error
-            throw $auditMessage
-        }
-    }
-
-    # Always compare the account against the current account in target system
-    if (($correlatedAccount | Measure-Object).count -eq 1) {
-        $action = "DeleteAccount"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
-        $action = "MultipleFound"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
-        $action = "NotFound"
-    }
-
-    # Process
-    switch ($action) {
-        "DeleteAccount" {
-            # Delete account
-            try {
-                $deleteUserSplatParams = @{
-                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)"
-                    Headers = $headers
-                    Method  = "DELETE"
-                }
-
-                if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-
-                    $deletedAccount = Invoke-HelloIDRestMethod @deleteUserSplatParams
-
-                    $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
-                            Message = "Deleted account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                            IsError = $false
-                        })
-                }
-                else {
-                    Write-Warning "DryRun: Would delete account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                }
-            }
-            catch {
-                $ex = $PSItem
-                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error deleting account [$($account.userName)]. Error: $($errorObj.FriendlyMessage)"
-                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-                }
-                else {
-                    $auditMessage = "Error deleting account [$($account.userName)]. Error: $($ex.Exception.Message)"
-                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-                }
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
-                        Message = $auditMessage
-                        IsError = $true
-                    })
-
-                # Throw terminal error
-                throw $auditMessage
-            }
-
-            break
-        }
-
-        "MultipleFound" {
-            $auditMessage = "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the accounts are unique."
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $true
-                })
-        
-            # Throw terminal error
-            throw $auditMessage
-
-            break
-        }
-
-        "NotFound" {
-            $auditMessage = "Skipped deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = $auditMessage
-                    IsError = $false
-                })
-
-            break
-        }
+        # Throw terminal error
+        throw $auditMessage
     }
 }
 catch {
@@ -330,11 +227,20 @@ catch {
     Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
 }
 finally {
-    # Check if auditLogs contains errors, if no errors are found, set success to true
-    if ($outputContext.AuditLogs.IsError -contains $true) {
-        $outputContext.Success = $false
-    }
-    else {
-        $outputContext.Success = $true
+    # Send results
+    foreach ($product in $products) {
+        # Shorten DisplayName to max. 100 chars
+        $displayName = "Product - $($product.name)"
+        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
+        $permission = @{
+            DisplayName    = $displayName
+            Identification = @{
+                Id   = $product.selfServiceProductGUID
+                Name = $product.name
+                Type = "Product"
+            }
+        }
+
+        $outputContext.Permissions.Add($permission)
     }
 }
