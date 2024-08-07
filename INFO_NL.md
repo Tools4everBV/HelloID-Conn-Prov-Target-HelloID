@@ -1,5 +1,3 @@
-## HelloID Target Connector
-
 HelloID is de Identity & Access Management (IAM)-oplossing van Tools4ever. Met behulp van de HelloID Target Connector koppel je HelloID Provisioning aan de modules Access Management en Service Automation van HelloID. De koppeling geeft gebruikers onder meer toegang tot Single Sign-On (SSO), Self-Service producten en gedelegeerde formulieren. In dit artikel lees je meer over de HelloID Target Connector, de mogelijkheden en voordelen.
 
 ## Wat is HelloID? 
@@ -8,9 +6,9 @@ HelloID is een IAM-oplossing van Tools4ever die organisaties ondersteunt bij het
 
 De IAM-oplossing bestaat uit meerdere modules, die ieder eigen functionaliteiten bieden:
 
-*	Provisioning: automatiseert het proces van het aanmaken, wijzigen en verwijderen van gebruikersaccounts op basis van informatie uit een bronsysteem. 
-*	Service Automation: stroomlijnt veelvoorkomende verzoeken binnen de organisatie, zoals toegangsverzoeken. Het biedt onder meer mogelijkheden op het gebied van Self-Service. Ook maakt de module het delegeren van taken mogelijk.
-*	Access Management: biedt gebruikers snelle en gebruiksvriendelijke toegang tot alle applicaties waarop zij vertrouwen.
+*	**Provisioning:** automatiseert het proces van het aanmaken, wijzigen en verwijderen van gebruikersaccounts op basis van informatie uit een bronsysteem. 
+*	**Service Automation:** stroomlijnt veelvoorkomende verzoeken binnen de organisatie, zoals toegangsverzoeken. Het biedt onder meer mogelijkheden op het gebied van Self-Service. Ook maakt de module het delegeren van taken mogelijk.
+*	**Access Management:** biedt gebruikers snelle en gebruiksvriendelijke toegang tot alle applicaties waarop zij vertrouwen.
 
 Belangrijk om op te merken is dat de HelloID Provisioning-module volledig is gescheiden - zowel technisch als financieel - van de modules Access Management en Service Automation. Voor het gebruik van de modules Access Management en Service Automation is daardoor een account in HelloID vereist. Met behulp van dit account kunnen gebruikers inloggen op HelloID en krijgen zij toegang tot onder meer SSO-koppelingen, Self-Service producten en gedelegeerde formulieren. 
 
