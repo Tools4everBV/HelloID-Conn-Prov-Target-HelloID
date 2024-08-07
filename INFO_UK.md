@@ -1,5 +1,3 @@
-## HelloID Target Connector
-
 HelloID is the name of our Identity and Access Management (IAM) product. Additionally, there is also a HelloID target connector. This article delves deeper into the HelloID target connector. The HelloID Target Connector allows you to link HelloID Provisioning to the Access Management and Service Automation modules of the Identity & Access Management (IAM) solution. This connection provides users with access to Single Sign-On (SSO), Self-Service products, and delegated forms. This article discusses this integration, its capabilities, and benefits.
 
 ## What is HelloID?
@@ -8,9 +6,9 @@ HelloID is an IAM solution from Tools4ever that supports organisations in managi
 
 The IAM solution consists of several modules, each offering its own functionalities:
 
-*	Provisioning: Automates the process of creating, modifying, and deleting user accounts based on information from a source system.
-*	Service Automation: Streamlines common requests within the organisation, such as access requests. It offers capabilities in Self-Service and also enables the delegation of tasks.
-*	Access Management: Provides users with quick and user-friendly access to all the applications they rely on.
+*	**Provisioning:** Automates the process of creating, modifying, and deleting user accounts based on information from a source system.
+*	**Service Automation:** Streamlines common requests within the organisation, such as access requests. It offers capabilities in Self-Service and also enables the delegation of tasks.
+*	**Access Management:** Provides users with quick and user-friendly access to all the applications they rely on.
 
 It's important to note that the HelloID Provisioning module is completely separate—both technically and financially—from the Access Management and Service Automation modules. Therefore, an account in HelloID is required to use the Access Management and Service Automation modules. With this account, users can log in to HelloID and gain access to features including SSO integrations, Self-Service products, and delegated forms.
 
@@ -44,7 +42,6 @@ HelloID exchanges information between HelloID Provisioning and the Access Manage
 | **Employee data changes** | 	During their tenure, employees may need updates to certain details, such as display or login names. HelloID can modify any aspect of an account's information, at the attribute level. |
 | **Job role change** | 	Should an employee’s role change, which may involve different authorisations, HelloID automatically updates permissions based on the job changes recorded in your source system. |
 | **Employee departure** | 	When an employee leaves, HelloID automatically deactivates the HelloID user account and informs the relevant employee. If desired, HelloID automatically deletes the HelloID account of the former employee after some time. |
-
 
 HelloID also supports dynamic permissions, which in HelloID always operate based on source data. Dynamic permissions, for example, enable the configuration of all department groups based on a single business rule. HelloID identifies correlations between source data and the respective groups. Unlike regular, non-dynamic permissions, dynamic permissions automatically adjust to the changing structure of your organisation.
 
