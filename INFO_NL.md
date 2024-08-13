@@ -14,7 +14,7 @@ Belangrijk om op te merken is dat de HelloID Provisioning-module volledig is ges
 
 Toegangsrechten binnen HelloID zijn geregeld op basis van groepen. Deze groepen en gebruikersaccounts voor specifiek Access Management en Service Automation vormen samen de zogeheten HelloID Directory. De HelloID Directory is vergelijkbaar met een systeem als Active Directory en maakt het centraal beheren van gebruikers en hun toegangsrechten mogelijk. 
 
-Waarom is HelloID koppeling handig?
+## Waarom is HelloID koppeling handig?
 Het gebruik van HelloID Access Management en Service Automation vereist een gebruikersaccount in HelloID. Niet alle gebruikers binnen de organisatie krijgen echter standaard een HelloID-account toegewezen. De HelloID connector biedt uitkomst en maakt het overbruggen van deze scheiding mogelijk.
 
 De HelloID connector - die uitsluitend wordt ingezet als doelconnector - maakt een koppeling met veelvoorkomende systemen mogelijk, zoals: 
