@@ -51,8 +51,8 @@ Daarnaast maakt de integratie het aanvragen van Self-Service producten mogelijk.
 
 Je kunt HelloID integreren met diverse andere systemen. Zo kan je onder meer diverse bronsystemen aan HelloID koppelen, en zo het beheer van gebruikers en autorisaties naar een hoger niveau tillen. Enkele veelvoorkomende integraties zijn:
 
-**HelloID - AFAS koppeling:** Indien de HelloID-directory je primaire gebruikersdirectory is en SSO verzorgt, moet het UPN-veld in AFAS gevuld worden met de waarde uit de HelloID-directory. De provisioning-koppeling met HelloID kan dit proces automatiseren. Dit stroomlijnt het proces en vermindert het aantal handmatige handelingen, wat de efficiëntie vergroot en foutgevoeligheid verkleint. 
+* **HelloID - AFAS koppeling:** Indien de HelloID-directory je primaire gebruikersdirectory is en SSO verzorgt, moet het UPN-veld in AFAS gevuld worden met de waarde uit de HelloID-directory. De provisioning-koppeling met HelloID kan dit proces automatiseren. Dit stroomlijnt het proces en vermindert het aantal handmatige handelingen, wat de efficiëntie vergroot en foutgevoeligheid verkleint. 
 
-**HelloID - TOPdesk koppeling:** De koppeling tussen HelloID en TOPdesk houdt de twee systemen volledig in-sync, wat van belang is met het oog op onder meer SSO. Je verhoogt zo de productiviteit van medewerkers en verbetert de beveiliging. Tegelijkertijd vereenvoudig je het beheer van zowel gebruikersaccounts als autorisaties. 
+* **HelloID - TOPdesk koppeling:** De koppeling tussen HelloID en TOPdesk houdt de twee systemen volledig in-sync, wat van belang is met het oog op onder meer SSO. Je verhoogt zo de productiviteit van medewerkers en verbetert de beveiliging. Tegelijkertijd vereenvoudig je het beheer van zowel gebruikersaccounts als autorisaties. 
 
 HelloID ondersteunt ruim 200 connectoren. We bieden dan ook een breed scala aan integratiemogelijkheden tussen HelloID en andere bron- en doelsystemen. We breiden ons aanbod aan connectoren en integraties continu uit, waardoor je met alle populaire systemen kunt integreren.
