@@ -14,6 +14,7 @@
   - [Table of contents](#table-of-contents)
   - [Introduction](#introduction)
   - [Getting started](#getting-started)
+    - [HelloID Icon URL](#helloid-icon-url)
     - [Provisioning PowerShell V2 connector](#provisioning-powershell-v2-connector)
       - [Correlation configuration](#correlation-configuration)
       - [Field mapping](#field-mapping)
@@ -69,6 +70,12 @@ For further details, refer to the following pages in the HelloID Docs:
 [Generate an API key](https://docs.helloid.com/en/api/generate-an-api-key.html).
 [API docs](https://apidocs.helloid.com/docs/helloid/)
 
+### HelloID Icon URL
+URL of the icon used for the HelloID Provisioning target system.
+
+```
+https://raw.githubusercontent.com/Tools4everBV/HelloID-Conn-Prov-Target-HelloID/refs/heads/main/Icon.png
+```
 
 ### Provisioning PowerShell V2 connector
 
