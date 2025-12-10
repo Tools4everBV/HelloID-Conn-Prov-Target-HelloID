@@ -233,8 +233,6 @@ finally {
             DisplayName    = $displayName
             Identification = @{
                 Id   = $group.groupGuid
-                Name = $group.name
-                Type = "Group"
             }
         }
 

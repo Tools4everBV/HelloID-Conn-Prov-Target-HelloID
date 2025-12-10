@@ -211,13 +211,13 @@ try {
     # Validate correlation configuration
     if ($actionContext.CorrelationConfiguration.Enabled) {
         $correlationField = $actionContext.CorrelationConfiguration.accountField
-        $correlationValue = $actionContext.CorrelationConfiguration.accountFieldValue
+        $correlationValue = $actionContext.CorrelationConfiguration.personFieldValue
 
         if ([string]::IsNullOrEmpty($($correlationField))) {
             throw "Correlation is enabled but not configured correctly"
         }
         if ([string]::IsNullOrEmpty($($correlationValue))) {
-            throw "Correlation is enabled but [accountFieldValue] is empty. Please make sure it is correctly mapped"
+            throw "Correlation is enabled but [personFieldValue] is empty. Please make sure it is correctly mapped"
         }
     
         # Verify if a user must be either [created ] or just [correlated]
