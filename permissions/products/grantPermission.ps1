@@ -228,7 +228,26 @@ try {
     }
 
     if (($correlatedAccount | Measure-Object).count -eq 1) {
-        $action = "GrantPermission"
+
+        # Verify if product is already granted to user
+        $assignmentsSplatParams = @{
+            Uri     = "$($actionContext.Configuration.baseUrl)/product-assignment/by-user/$($correlatedAccount.userGuid)"
+            Headers = $headers
+            Method  = "GET"
+        }
+
+        $assignments = Invoke-HelloIDRestMethod @assignmentsSplatParams
+
+        if ($null -ne $assignments) {
+            $assignedProduct = $assignments | Where-Object { $_.productGuid -eq $actionContext.References.Permission.Id }
+            if ($null -ne $assignedProduct) {
+
+                $action = "AlreadyGranted"
+            }
+        }
+        else {
+            $action = "GrantPermission"
+        }
     }
     elseif (($correlatedAccount | Measure-Object).count -gt 1) {
         $action = "MultipleFound"
@@ -297,6 +316,16 @@ try {
             }
 
             break
+        }
+
+        "AlreadyGranted" {
+            $auditMessage = "Product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] is already granted for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). No action will be taken."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $false
+                })
         }
 
         "MultipleFound" {
