@@ -29,37 +29,39 @@
 
 _HelloID-Conn-Prov-Target-HelloID_ is a _target_ connector. _HelloID_ provides a set of REST API's that allow you to programmatically interact with its data. The HelloID connector uses the API endpoints listed in the table below.
 
-| Endpoint                                                                                                                    | Description                         |
-| --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/562f51f234ff9-get-a-user)                                 | Get specific user account (GET)     |
-| [/api/v1/users/](https://apidocs.helloid.com/docs/helloid/7d9592b2cfeed-add-a-user)                                         | Create user accounts (POST)         |
-| [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/b432862fd92c6-update-a-user)                              | Update user accounts (PUT)          |
-| [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/9d294ac38808f-delete-a-user)                              | Delete user accounts (DELETE)       |
-| [/api/v1/groups](https://apidocs.helloid.com/docs/helloid/15f7f74779d57-get-all-groups)                                     | Get all groups (GET)                |
-| [/api/v1/users/{UserId}/groups](https://apidocs.helloid.com/docs/helloid/575c5cde6e378-link-a-user-to-a-group)              | Grant group to user (POST)          |
-| [/api/v1/{UserId}/groups/{GroupId}](https://apidocs.helloid.com/docs/helloid/403a836a09d77-unlink-a-user-from-a-group)      | Revoke group from user (DELETE)     |
-| [/api/v1/groups](https://tools4ever.stoplight.io/docs/helloid/0b84c01989115-add-a-group)                                    | Create groups (POST)                |
-| [/api/v1/selfservice/products](https://apidocs.helloid.com/docs/helloid/ddbf642b3d115-get-all-products)                     | Get all products (GET)              |
-| [/api/v1/selfservice/products/request](https://apidocs.helloid.com/docs/helloid/5fff6c1a37337-request-a-product-for-a-user) | Request a product for a user (POST) |
+| Endpoint                                                                                                                                                | Description                           |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/562f51f234ff9-get-a-user)                                                             | Get specific user account (GET)       |
+| [/api/v1/users/](https://apidocs.helloid.com/docs/helloid/7d9592b2cfeed-add-a-user)                                                                     | Create user accounts (POST)           |
+| [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/b432862fd92c6-update-a-user)                                                          | Update user accounts (PUT)            |
+| [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/9d294ac38808f-delete-a-user)                                                          | Delete user accounts (DELETE)         |
+| [/api/v1/groups](https://apidocs.helloid.com/docs/helloid/15f7f74779d57-get-all-groups)                                                                 | Get all groups (GET)                  |
+| [/api/v1/users/{UserId}/groups](https://apidocs.helloid.com/docs/helloid/575c5cde6e378-link-a-user-to-a-group)                                          | Grant group to user (POST)            |
+| [/api/v1/{UserId}/groups/{GroupId}](https://apidocs.helloid.com/docs/helloid/403a836a09d77-unlink-a-user-from-a-group)                                  | Revoke group from user (DELETE)       |
+| [/api/v1/groups](https://tools4ever.stoplight.io/docs/helloid/0b84c01989115-add-a-group)                                                                | Create groups (POST)                  |
+| [/api/v1/selfservice/products](https://apidocs.helloid.com/docs/helloid/ddbf642b3d115-get-all-products)                                                 | Get all products (GET)                |
+| [/api/v1/selfservice/products/request](https://apidocs.helloid.com/docs/helloid/5fff6c1a37337-request-a-product-for-a-user)                             | Request a product for a user (POST)   |
+| [/api/v1/product-assignment/by-user/{UserId}](https://apidocs.helloid.com/docs/helloid/4e2983878a3b3-get-product-assignments-by-user)                   | Get product assignments by user (GET) |
+| [/api/v1/product-assignment/unassign/by-product](https://apidocs.helloid.com/docs/helloid/00377615a7e6f-unassign-a-product-from-a-user-by-product-guid) | Unassign a product from a user (POST) |
 
 The following lifecycle actions are available:
 
-| Action                        | Description                                                                                          |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------- |
-| create.ps1                    | Create or correlate to an account                                                                    |
-| delete.ps1                    | Delete an account                                                                                    |
-| disable.ps1                   | Disable an account                                                                                   |
-| enable.ps1                    | Enable an account                                                                                    |
-| update.ps1                    | Update an account                                                                                    |
-| permissions.groups.ps1        | List groups as permissions                                                                           |
-| grantPermission.groups.ps1    | Grant groupmembership to an account                                                                  |
-| revokePermission.groups.ps1   | Revoke groupmembership from an account                                                               |
-| permissions.products.ps1      | List products as permissions                                                                         |
-| grantPermission.products.ps1  | Request product for an account                                                                       |
-| revokePermission.products.ps1 | **Note:** there is no functionality to "unrequest" a product, therefore this is just an empty script |
-| resources.groups.ps1          | Create group based on HR data                                                                        |
-| configuration.json            | Default _configuration.json_                                                                         |
-| fieldMapping.json             | Default _fieldMapping.json_                                                                          |
+| Action                        | Description                            |
+|-------------------------------|----------------------------------------|
+| create.ps1                    | Create or correlate to an account      |
+| delete.ps1                    | Delete an account                      |
+| disable.ps1                   | Disable an account                     |
+| enable.ps1                    | Enable an account                      |
+| update.ps1                    | Update an account                      |
+| permissions.groups.ps1        | List groups as permissions             |
+| grantPermission.groups.ps1    | Grant groupmembership to an account    |
+| revokePermission.groups.ps1   | Revoke groupmembership from an account |
+| permissions.products.ps1      | List products as permissions           |
+| grantPermission.products.ps1  | Request product for an account         |
+| revokePermission.products.ps1 | Revoke product for an account          |
+| resources.groups.ps1          | Create group based on HR data          |
+| configuration.json            | Default _configuration.json_           |
+| fieldMapping.json             | Default _fieldMapping.json_            |
 
 ## Getting started
 By using this connector you will have the ability to seamlessly create and manage user accounts and groups in HelloID. Additionally, you can request products for users, enhancing your workflow. It's important to note that at this time, there isn't a feature to "unrequest" a product.
@@ -90,7 +92,7 @@ To properly setup the correlation:
 2. Specify the following configuration:
 
     | Setting                   | Value      |
-    | ------------------------- | ---------- |
+    |---------------------------|------------|
     | Enable correlation        | `True`     |
     | Person correlation field  | ``         |
     | Account correlation field | `UserName` |
@@ -107,7 +109,7 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 The following settings are required to connect to the API.
 
 | Setting        | Description                                                                                                                        | Mandatory |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------- |
+|----------------|------------------------------------------------------------------------------------------------------------------------------------|-----------|
 | Base URL       | The URL to the API                                                                                                                 | Yes       |
 | Api key        | The key to connect to the API                                                                                                      | Yes       |
 | Api secret     | The secret to connect to the API                                                                                                   | Yes       |
@@ -123,7 +125,8 @@ The following settings are required to connect to the API.
   - [ ] API Secret
 
 ### Remarks
-> There is no functionality to "unrequest" a product, therefore this is just an empty script.
+> The product grant script only requests the product in case it has not been assigned for the account yet.
+> The product revoke script revokes all assignments for the requested product.
 
 ## Setup the connector
 
