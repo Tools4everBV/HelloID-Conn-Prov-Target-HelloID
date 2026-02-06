@@ -236,8 +236,6 @@ finally {
             DisplayName    = $displayName
             Identification = @{
                 Id   = $product.selfServiceProductGUID
-                Name = $product.name
-                Type = "Product"
             }
         }
 

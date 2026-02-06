@@ -305,7 +305,7 @@ try {
         }
 
         "NotFound" {
-            $auditMessage = "Skipped revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
+            $auditMessage = "Skipped revoking group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional

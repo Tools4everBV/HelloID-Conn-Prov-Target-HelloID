@@ -258,19 +258,19 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Requesting product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Verbose "Requesting product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                     Write-Verbose "Body: $($requestProductSplatParams.Body)"
 
                     $requestedProduct = Invoke-HelloIDRestMethod @requestProductSplatParams
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Granted product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            Message = "Granted product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would request product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Warning "DryRun: Would request product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                     Write-Warning "DryRun: Body: $($requestProductSplatParams.Body)"
                 }
             }
@@ -279,11 +279,11 @@ try {
                 if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
                     $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
                     $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error granting product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    $auditMessage = "Error granting product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
                     Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
                 }
                 else {
-                    $auditMessage = "Error granting product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    $auditMessage = "Error granting product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
                     Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
                 }
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
