@@ -37,7 +37,7 @@ _HelloID-Conn-Prov-Target-HelloID_ is a _target_ connector. _HelloID_ provides a
 | [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/b432862fd92c6-update-a-user)                                                          | Update user accounts (PUT)            |
 | [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/9d294ac38808f-delete-a-user)                                                          | Delete user accounts (DELETE)         |
 | [/api/v1/groups](https://apidocs.helloid.com/docs/helloid/15f7f74779d57-get-all-groups)                                                                 | Get all groups (GET)                  |
-| [/api/v1/groups/{GroupId}](https://apidocs.helloid.com/docs/helloid/7affa2ddf0991-get-a-group)                                                          | Get specific group(GET)               |
+| [/api/v1/groups/{GroupId}](https://apidocs.helloid.com/docs/helloid/7affa2ddf0991-get-a-group)                                                          | Get specific groups (GET)             |
 | [/api/v1/users/{UserId}/groups](https://apidocs.helloid.com/docs/helloid/575c5cde6e378-link-a-user-to-a-group)                                          | Grant group to user (POST)            |
 | [/api/v1/{UserId}/groups/{GroupId}](https://apidocs.helloid.com/docs/helloid/403a836a09d77-unlink-a-user-from-a-group)                                  | Revoke group from user (DELETE)       |
 | [/api/v1/groups](https://apidocs.helloid.com/docs/helloid/0b84c01989115-add-a-group)                                                                    | Create groups (POST)                  |
