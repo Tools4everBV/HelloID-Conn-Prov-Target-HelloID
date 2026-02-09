@@ -15,6 +15,33 @@ $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
 #region functions
+function Get-ADSanitizedGroupName {
+    # The names of security principal objects can contain all Unicode characters except the special LDAP characters defined in RFC 2253.
+    # This list of special characters includes: a leading space a trailing space and any of the following characters: # , + " \ < > 
+    # A group account cannot consist solely of numbers, periods (.), or spaces. Any leading periods or spaces are cropped.
+    # https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc776019(v=ws.10)?redirectedfrom=MSDN
+    # https://www.ietf.org/rfc/rfc2253.txt    
+    param(
+        [parameter(Mandatory = $true)][String]$Name
+    )
+    $newName = $name.trim()
+    $newName = $newName -replace " - ", "-"
+    $newName = $newName -replace "[`,~,!,#,$,%,^,&,*,(,),+,=,<,>,?,/,',`",,:,\,|,},{,.]", ""
+    $newName = $newName -replace "\[", ""
+    $newName = $newName -replace "]", ""
+    $newName = $newName -replace " ", "-"
+    $newName = $newName -replace "--", "-"
+    $newName = $newName -replace "\.\.\.\.\.", "."
+    $newName = $newName -replace "\.\.\.\.", "."
+    $newName = $newName -replace "\.\.\.", "."
+    $newName = $newName -replace "\.\.", "."
+
+    # Remove diacritics
+    $newName = Remove-StringLatinCharacters $newName
+    
+    return $newName
+}
+
 function Invoke-HelloIDRestMethod {
     [CmdletBinding()]
     param (
@@ -247,7 +274,7 @@ try {
             if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $True)) {
                 # Example: department_<department externalId>
                 $groupName = "department_" + $contract.Department.ExternalId
-                $groupName = Remove-StringLatinCharacters $groupName
+                $groupName = Get-ADSanitizedGroupName $groupName
 
                 $permissionCorrelationValue = $groupName
 
