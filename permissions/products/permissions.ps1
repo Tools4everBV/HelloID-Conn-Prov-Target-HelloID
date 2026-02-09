@@ -187,16 +187,13 @@ try {
         Write-Verbose 'Querying products'
 
         $queryProductsSplatParams = @{
-            Uri       = "$($actionContext.Configuration.baseUrl)/selfservice/products"
+            Uri       = "$($actionContext.Configuration.baseUrl)/products"
             Headers   = $headers
             Method    = "GET"
             UsePaging = $true
         }
 
         $products = Invoke-HelloIDRestMethod @queryProductsSplatParams
-
-        # Filter for only enabled products
-        $products = $products | Where-Object { $_.isEnabled -eq $true }
 
         Write-Information "Queried products. Result count: $(($products | Measure-Object).Count)"
     }

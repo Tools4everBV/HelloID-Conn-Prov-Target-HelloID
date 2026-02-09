@@ -234,6 +234,7 @@ try {
             Uri     = "$($actionContext.Configuration.baseUrl)/product-assignment/by-user/$($correlatedAccount.userGuid)"
             Headers = $headers
             Method  = "GET"
+            UsePaging = $true
         }
 
         $assignments = Invoke-HelloIDRestMethod @assignmentsSplatParams
