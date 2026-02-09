@@ -1,7 +1,7 @@
-#################################################
-# HelloID-Conn-Prov-Target-HelloID-Import
+####################################################################
+# HelloID-Conn-Prov-Target-HelloID-ImportPermissions-Group
 # PowerShell V2
-#################################################
+####################################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -137,6 +137,7 @@ function Resolve-HelloIDError {
             elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "message")) {
                 $httpErrorObj.FriendlyMessage = $errorDetailsObject.message
             }
+            $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails # Temporarily assignment
         }
         catch {
             $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
@@ -182,42 +183,41 @@ catch {
 }
 
 try {
-    Write-Information 'Starting HelloID account entitlement import'
+    Write-Information 'Starting HelloID permission entitlement import'
 
-    do {
-        $splatImportAccountParams = @{
-            Uri     = "$($actionContext.Configuration.BaseUrl)/users"
+    $splatImportGroupsParams = @{
+        Uri     = "$($actionContext.Configuration.BaseUrl)/groups"
+        Method  = 'GET'
+        Headers = $headers
+        UsePaging = $true
+    }
+    $importedGroups = Invoke-HelloIDRestMethod @splatImportGroupsParams
+
+    foreach ($importedGroup in $importedGroups) {
+        $splatImportGroupParams = @{
+            Uri     = "$($actionContext.Configuration.BaseUrl)/groups/$($importedGroup.groupGuid)"
             Method  = 'GET'
             Headers = $headers
-            UsePaging = $true
         }
-        $importedAccounts = Invoke-HelloIDRestMethod @splatImportAccountParams
-        foreach ($importedAccount in $importedAccounts) {
-            # Making sure only fieldMapping fields are imported
-            $data = @{}
-            foreach ($field in $actionContext.ImportFields) {
-                $data[$field] = $importedAccount.$field
+        $group = Invoke-HelloIDRestMethod @splatImportGroupParams
+        $permission = @{
+            PermissionReference = @{
+                Reference = $importedGroup.groupGuid
             }
-
-            # Make sure the displayName has a value
-            $displayName = "$($importedAccount.firstName) $($importedAccount.lastName)".trim()
-            if ([string]::IsNullOrEmpty($displayName)) {
-                $displayName = $importedAccount.userGUID
-            }
-
-            # Return the result
-            Write-Output @{
-                AccountReference = $importedAccount.userName
-                displayName      = $displayName
-                UserName         = $importedAccount.userName
-                Enabled          = $importedAccount.isEnabled
-                Data             = $data
-            }
+            DisplayName         = "$($importedGroup.name)"
+            AccountReferences   = $null
         }
-        $skip += $take
-    } while ($importedAccounts.Count -eq $take -and $importedAccounts.Count -gt 0)
-   
-    Write-Information 'HelloID account entitlement import completed'
+
+        # The code below splits a list of permission members into batches of 100
+        # Each batch is assigned to $permission.AccountReferences and the permission object will be returned to HelloID for each batch
+        # Ensure batching is based on the number of account references to prevent exceeding the maximum limit of 500 account references per batch
+        $batchSize = 500
+        for ($i = 0; $i -lt $group.users.Count; $i += $batchSize) {
+            $permission.AccountReferences = $group.users[$i..([Math]::Min($i + $batchSize - 1, $group.users.Count - 1))]
+            Write-Output $permission
+        }
+    }
+    Write-Information 'HelloID permission entitlement import completed'
 }
 catch {
     $ex = $PSItem
@@ -225,10 +225,10 @@ catch {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-HelloIDError -ErrorObject $ex
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        Write-Error "Could not import HelloID account entitlements. Error: $($errorObj.FriendlyMessage)"
+        Write-Error "Could not import HelloID permission entitlements. Error: $($errorObj.FriendlyMessage)"
     }
     else {
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        Write-Error "Could not import HelloID account entitlements. Error: $($ex.Exception.Message)"
+        Write-Error "Could not import HelloID permission entitlements. Error: $($ex.Exception.Message)"
     }
 }
