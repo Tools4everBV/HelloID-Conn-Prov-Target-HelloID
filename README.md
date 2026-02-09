@@ -31,6 +31,7 @@ _HelloID-Conn-Prov-Target-HelloID_ is a _target_ connector. _HelloID_ provides a
 
 | Endpoint                                                                                                                                                | Description                           |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| [/api/v1/users](https://apidocs.helloid.com/docs/helloid/041932dd2ca73-get-all-users)                                                                   | Get all user accounts (GET)           |
 | [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/562f51f234ff9-get-a-user)                                                             | Get specific user account (GET)       |
 | [/api/v1/users/](https://apidocs.helloid.com/docs/helloid/7d9592b2cfeed-add-a-user)                                                                     | Create user accounts (POST)           |
 | [/api/v1/users/{UserId}](https://apidocs.helloid.com/docs/helloid/b432862fd92c6-update-a-user)                                                          | Update user accounts (PUT)            |
@@ -38,7 +39,7 @@ _HelloID-Conn-Prov-Target-HelloID_ is a _target_ connector. _HelloID_ provides a
 | [/api/v1/groups](https://apidocs.helloid.com/docs/helloid/15f7f74779d57-get-all-groups)                                                                 | Get all groups (GET)                  |
 | [/api/v1/users/{UserId}/groups](https://apidocs.helloid.com/docs/helloid/575c5cde6e378-link-a-user-to-a-group)                                          | Grant group to user (POST)            |
 | [/api/v1/{UserId}/groups/{GroupId}](https://apidocs.helloid.com/docs/helloid/403a836a09d77-unlink-a-user-from-a-group)                                  | Revoke group from user (DELETE)       |
-| [/api/v1/groups](https://tools4ever.stoplight.io/docs/helloid/0b84c01989115-add-a-group)                                                                | Create groups (POST)                  |
+| [/api/v1/groups](https://apidocs.helloid.com/docs/helloid/0b84c01989115-add-a-group)                                                                    | Create groups (POST)                  |
 | [/api/v1/selfservice/products](https://apidocs.helloid.com/docs/helloid/ddbf642b3d115-get-all-products)                                                 | Get all products (GET)                |
 | [/api/v1/selfservice/products/request](https://apidocs.helloid.com/docs/helloid/5fff6c1a37337-request-a-product-for-a-user)                             | Request a product for a user (POST)   |
 | [/api/v1/product-assignment/by-user/{UserId}](https://apidocs.helloid.com/docs/helloid/4e2983878a3b3-get-product-assignments-by-user)                   | Get product assignments by user (GET) |
