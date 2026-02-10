@@ -297,6 +297,7 @@ try {
                     Write-Verbose "Body: $($createUserSplatParams.body)"
 
                     $createdAccount = Invoke-HelloIDRestMethod @createUserSplatParams
+                    $createdAccount | Add-Member -MemberType NoteProperty -Name 'password' -Value $actionContext.Data.password
                     $outputContext.AccountReference = $createdAccount.userGUID
                     $outputContext.Data = $createdAccount
 
