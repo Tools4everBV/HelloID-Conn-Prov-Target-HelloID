@@ -259,11 +259,11 @@ try {
     if (($correlatedAccount | Measure-Object).count -eq 1) {
         # Create reference object from correlated account and remove depth from userAttributes
         $referenceObject = $correlatedAccount.PSObject.Copy()
+        $outputContext.PreviousData = $correlatedAccount
         foreach ($userAttribute in $referenceObject.userAttributes.PSObject.Properties) {
             $referenceObject | Add-Member -MemberType NoteProperty -Name "userAttributes_$($userAttribute.Name)" -Value $userAttribute.Value -Force
         }
         $referenceObject.PSObject.Properties.remove("userAttributes")
-        $outputContext.PreviousData = $referenceObject
 
         # Create difference object from mapped account and remove depth from userAttributes
         $differenceObject = $account.PSObject.Copy()
@@ -273,20 +273,37 @@ try {
         $differenceObject.PSObject.Properties.remove("userAttributes")
 
         $propertiesToCompare = $differenceObject.PSObject.Properties.Name | Where-Object { $_ -ne "userGUID" }
+
+        # Ensure that all properties that are being compared exist on the reference object, if not add them with null value (to ensure they are included in Compare-Object)
+        foreach ($missingProperties in $propertiesToCompare) {
+            if (-not($referenceObject."$missingProperties")) {
+                $referenceObject | Add-Member -MemberType NoteProperty -Name $missingProperties -Value $null -Force
+            }
+        }
         $splatCompareProperties = @{
             ReferenceObject  = $referenceObject.PSObject.Properties | Where-Object { $_.Name -in $propertiesToCompare }
             DifferenceObject = $differenceObject.PSObject.Properties | Where-Object { $_.Name -in $propertiesToCompare }
         }
-        $propertiesChanged = Compare-Object @splatCompareProperties -PassThru
-        $oldProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '<=' })
-        $newProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '=>' })
-
-        if ($newProperties) {
+        if (-not $splatCompareProperties.ReferenceObject) {
+            Write-Information "ReferenceObject is null. Proceeding with UpdateAccount."
             $action = "UpdateAccount"
-            Write-Information "Account property(s) required to update: $($newProperties.Name -join ', ')"
+        }
+        elseif (-not $splatCompareProperties.DifferenceObject) {
+            Write-Information "DifferenceObject is null. No changes to process."
+            $action = "NoChanges"
         }
         else {
-            $action = "NoChanges"
+            $propertiesChanged = Compare-Object @splatCompareProperties -PassThru
+            $oldProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '<=' })
+            $newProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '=>' })
+
+            if ($newProperties) {
+                $action = "UpdateAccount"
+                Write-Information "Account property(s) required to update: $($newProperties.Name -join ', ')"
+            }
+            else {
+                $action = "NoChanges"
+            }
         }
     }
     elseif (($correlatedAccount | Measure-Object).count -gt 1) {
