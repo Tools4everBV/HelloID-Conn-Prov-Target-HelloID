@@ -184,38 +184,49 @@ catch {
 try {
     Write-Information 'Starting HelloID account entitlement import'
 
+    $importedAccounts = @()
+    $splatImportAccountParams = @{
+        Uri       = "$($actionContext.Configuration.BaseUrl)/users"
+        Method    = 'GET'
+        Headers   = $headers
+        UsePaging = $true
+    }
+    $importedAccounts += Invoke-HelloIDRestMethod @splatImportAccountParams
+    
+    $skip = 0
+    $take = 1000
     do {
-        $splatImportAccountParams = @{
-            Uri     = "$($actionContext.Configuration.BaseUrl)/users"
+        $splatImportDeletedParams = @{
+            Uri     = "$($actionContext.Configuration.BaseUrl)/users?isDeleted=true&skip=$($skip)&take=$($take)"
             Method  = 'GET'
             Headers = $headers
-            UsePaging = $true
         }
-        $importedAccounts = Invoke-HelloIDRestMethod @splatImportAccountParams
-        foreach ($importedAccount in $importedAccounts) {
-            # Making sure only fieldMapping fields are imported
-            $data = @{}
-            foreach ($field in $actionContext.ImportFields) {
-                $data[$field] = $importedAccount.$field
-            }
-
-            # Make sure the displayName has a value
-            $displayName = "$($importedAccount.firstName) $($importedAccount.lastName)".trim()
-            if ([string]::IsNullOrEmpty($displayName)) {
-                $displayName = $importedAccount.userGUID
-            }
-
-            # Return the result
-            Write-Output @{
-                AccountReference = $importedAccount.userName
-                displayName      = $displayName
-                UserName         = $importedAccount.userName
-                Enabled          = $importedAccount.isEnabled
-                Data             = $data
-            }
-        }
+        $importedAccounts += Invoke-HelloIDRestMethod @splatImportDeletedParams
         $skip += $take
     } while ($importedAccounts.Count -eq $take -and $importedAccounts.Count -gt 0)
+
+    foreach ($importedAccount in $importedAccounts) {
+        # Making sure only fieldMapping fields are imported
+        $data = @{}
+        foreach ($field in $actionContext.ImportFields) {
+            $data[$field] = $importedAccount.$field
+        }
+
+        # Make sure the displayName has a value
+        $displayName = "$($importedAccount.firstName) $($importedAccount.lastName)".trim()
+        if ([string]::IsNullOrEmpty($displayName)) {
+            $displayName = $importedAccount.userName
+        }
+
+        # Return the result
+        Write-Output @{
+            AccountReference = $importedAccount.userGUID
+            displayName      = $displayName
+            UserName         = $importedAccount.userName
+            Enabled          = $importedAccount.isEnabled
+            Data             = $data
+        }
+    }
    
     Write-Information 'HelloID account entitlement import completed'
 }

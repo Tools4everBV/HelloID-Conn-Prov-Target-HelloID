@@ -232,7 +232,7 @@ finally {
         $permission = @{
             DisplayName    = $displayName
             Identification = @{
-                Id   = $product.selfServiceProductGUID
+                Id   = $product.productId
             }
         }
 

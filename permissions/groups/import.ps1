@@ -202,7 +202,7 @@ try {
         $group = Invoke-HelloIDRestMethod @splatImportGroupParams
         $permission = @{
             PermissionReference = @{
-                Reference = $importedGroup.groupGuid
+                Id = $importedGroup.groupGuid
             }
             DisplayName         = "$($importedGroup.name)"
             AccountReferences   = $null
