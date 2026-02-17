@@ -6,14 +6,6 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
 #region functions
 function Invoke-HelloIDRestMethod {
     [CmdletBinding()]
@@ -69,7 +61,7 @@ function Invoke-HelloIDRestMethod {
             }
 
             if ($Body) {
-                Write-Verbose "Adding body to request in utf8 byte encoding"
+                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -188,7 +180,7 @@ try {
 
     # Create authorization headers with HelloID API key
     try {
-        Write-Verbose "Creating authorization headers with HelloID API key"
+        Write-Information "Creating authorization headers with HelloID API key"
 
         $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -196,7 +188,7 @@ try {
         $key = "Basic $base64"
         $headers = @{"authorization" = $Key }
 
-        Write-Verbose "Created authorization headers with HelloID API key"
+        Write-Information "Created authorization headers with HelloID API key"
     }
     catch {
         $ex = $PSItem
@@ -222,7 +214,7 @@ try {
 
     # Get current account
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
         $queryUserSplatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
             Headers = $headers
@@ -336,8 +328,8 @@ try {
                 }
                 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Account property(s) updated: [$($propertiesChanged.name -join ',')]"
-                    Write-Verbose "Body: $($updateUserSplatParams.Body)"
+                    Write-Information "Updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Account property(s) updated: [$($propertiesChanged.name -join ',')]"
+                    Write-Information "Body: $($updateUserSplatParams.Body)"
 
                     $updatedAccount = Invoke-HelloIDRestMethod @updateUserSplatParams
                     $outputContext.Data = $updatedAccount

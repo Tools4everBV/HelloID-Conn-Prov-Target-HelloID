@@ -6,14 +6,6 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
 #region functions
 function Get-ADSanitizedGroupName {
     # The names of security principal objects can contain all Unicode characters except the special LDAP characters defined in RFC 2253.
@@ -96,7 +88,7 @@ function Invoke-HelloIDRestMethod {
             }
 
             if ($Body) {
-                Write-Verbose "Adding body to request in utf8 byte encoding"
+                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -195,7 +187,7 @@ $permissionCorrelationField = "name"
 try {
     # Create authorization headers with HelloID API key
     try {
-        Write-Verbose "Creating authorization headers with HelloID API key"
+        Write-Information "Creating authorization headers with HelloID API key"
 
         $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -203,7 +195,7 @@ try {
         $key = "Basic $base64"
         $headers = @{"authorization" = $Key }
 
-        Write-Verbose "Created authorization headers with HelloID API key"
+        Write-Information "Created authorization headers with HelloID API key"
     }
     catch {
         $ex = $PSItem
@@ -229,7 +221,7 @@ try {
 
     # Get groups
     try {
-        Write-Verbose 'Querying groups'
+        Write-Information 'Querying groups'
 
         $queryGroupsSplatParams = @{
             Uri       = "$($actionContext.Configuration.baseUrl)/groups"
@@ -270,7 +262,7 @@ try {
     $desiredPermissions = @{ }
     if (-Not($actionContext.Operation -eq "revoke")) {
         foreach ($contract in $personContext.Person.Contracts) {
-            Write-Verbose "Contract in condition: $($contract.Context.InConditions)"
+            Write-Information "Contract in condition: $($contract.Context.InConditions)"
             if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $True)) {
                 # Example: department_<department externalId>
                 $groupName = "department_" + $contract.Department.ExternalId
@@ -278,7 +270,7 @@ try {
 
                 $permissionCorrelationValue = $groupName
 
-                Write-Verbose "Querying group where [$($permissionCorrelationField)] = [$($permissionCorrelationValue)]"
+                Write-Information "Querying group where [$($permissionCorrelationField)] = [$($permissionCorrelationValue)]"
 
                 $correlatedResource = $null
                 $correlatedResource = $groupsGrouped["$($permissionCorrelationValue)"]
@@ -319,7 +311,7 @@ try {
 
     # Get current account
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
         $queryUserSplatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
             Headers = $headers
@@ -366,7 +358,7 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Information "Revoking group: [$($permission.Value)] with groupGuid: [$($permission.Name)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
 
                     $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
 
@@ -430,8 +422,8 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Granting group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                    Write-Verbose "Body: $($grantGroupMembershipSplatParams.Body)"
+                    Write-Information "Granting group: [$($permission.Value)] with groupGuid: [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Information "Body: $($grantGroupMembershipSplatParams.Body)"
 
                     $grantedGroupMembership = Invoke-HelloIDRestMethod @grantGroupMembershipSplatParams
 
