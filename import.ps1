@@ -1,7 +1,7 @@
-######################################################
-# HelloID-Conn-Prov-Target-HelloID-Permissions-Products
+#################################################
+# HelloID-Conn-Prov-Target-HelloID-Import
 # PowerShell V2
-######################################################
+#################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -95,7 +95,6 @@ function Invoke-HelloIDRestMethod {
         }
     }
 }
-
 function Resolve-HelloIDError {
     [CmdletBinding()]
     param (
@@ -113,7 +112,7 @@ function Resolve-HelloIDError {
         if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
             $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
         }
-        elseif ($ErrorObject.Exception.GetType().FullName -eq "System.Net.WebException") {
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
             if ($null -ne $ErrorObject.Exception.Response) {
                 $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
                 if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
@@ -133,101 +132,106 @@ function Resolve-HelloIDError {
         }
         catch {
             $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
+            Write-Warning $_.Exception.Message
         }
         Write-Output $httpErrorObj
     }
 }
-#endregion functions
+#endregion
 
+# Create authorization headers with HelloID API key
 try {
-    # Create authorization headers with HelloID API key
-    try {
-        Write-Information "Creating authorization headers with HelloID API key"
+    Write-Information "Creating authorization headers with HelloID API key"
 
-        $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
-        $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
-        $base64 = [System.Convert]::ToBase64String($bytes)
-        $key = "Basic $base64"
-        $headers = @{"authorization" = $Key }
+    $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+    $base64 = [System.Convert]::ToBase64String($bytes)
+    $key = "Basic $base64"
+    $headers = @{"authorization" = $Key }
 
-        Write-Information "Created authorization headers with HelloID API key"
-    }
-    catch {
-        $ex = $PSItem
-        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-            $errorObj = Resolve-HelloIDError -ErrorObject $ex
-            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
-            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        }
-        else {
-            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
-            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        }
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = $auditMessage
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw $auditMessage 
-    }
-
-    # Get products
-    try {
-        Write-Information 'Querying products'
-
-        $queryProductsSplatParams = @{
-            Uri       = "$($actionContext.Configuration.baseUrl)/products"
-            Headers   = $headers
-            Method    = "GET"
-            UsePaging = $true
-        }
-
-        $products = Invoke-HelloIDRestMethod @queryProductsSplatParams
-
-        Write-Information "Queried products. Result count: $(($products | Measure-Object).Count)"
-    }
-    catch {
-        $ex = $PSItem
-        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-            $errorObj = Resolve-HelloIDError -ErrorObject $ex
-            $auditMessage = "Error querying products. Error: $($errorObj.FriendlyMessage)"
-            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        }
-        else {
-            $auditMessage = "Error querying products. Error: $($ex.Exception.Message)"
-            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        }
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = $auditMessage
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw $auditMessage
-    }
+    Write-Information "Created authorization headers with HelloID API key"
 }
 catch {
     $ex = $PSItem
-    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
+    if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+        $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+        $errorObj = Resolve-HelloIDError -ErrorObject $ex
+        $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
+        Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+    }
+    else {
+        $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
+        Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    }
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            # Action  = "" # Optional
+            Message = $auditMessage
+            IsError = $true
+        })
+
+    # Throw terminal error
+    throw $auditMessage 
 }
-finally {
-    # Send results
-    foreach ($product in $products) {
-        # Shorten DisplayName to max. 100 chars
-        $displayName = "Product - $($product.name)"
-        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
-        $permission = @{
-            DisplayName    = $displayName
-            Identification = @{
-                Id   = $product.productId
-            }
+
+try {
+    Write-Information 'Starting HelloID account entitlement import'
+
+    $importedAccounts = @()
+    $splatImportAccountParams = @{
+        Uri       = "$($actionContext.Configuration.BaseUrl)/users"
+        Method    = 'GET'
+        Headers   = $headers
+        UsePaging = $true
+    }
+    $importedAccounts += Invoke-HelloIDRestMethod @splatImportAccountParams
+    
+    $skip = 0
+    $take = 1000
+    do {
+        $splatImportDeletedParams = @{
+            Uri     = "$($actionContext.Configuration.BaseUrl)/users?isDeleted=true&skip=$($skip)&take=$($take)"
+            Method  = 'GET'
+            Headers = $headers
+        }
+        $importedAccounts += Invoke-HelloIDRestMethod @splatImportDeletedParams
+        $skip += $take
+    } while ($importedAccounts.Count -eq $take -and $importedAccounts.Count -gt 0)
+
+    foreach ($importedAccount in $importedAccounts) {
+        # Making sure only fieldMapping fields are imported
+        $data = @{}
+        foreach ($field in $actionContext.ImportFields) {
+            $data[$field] = $importedAccount.$field
         }
 
-        $outputContext.Permissions.Add($permission)
+        # Make sure the displayName has a value
+        $displayName = "$($importedAccount.firstName) $($importedAccount.lastName)".trim()
+        if ([string]::IsNullOrEmpty($displayName)) {
+            $displayName = $importedAccount.userName
+        }
+
+        # Return the result
+        Write-Output @{
+            AccountReference = $importedAccount.userGUID
+            displayName      = $displayName
+            UserName         = $importedAccount.userName
+            Enabled          = $importedAccount.isEnabled
+            Data             = $data
+        }
+    }
+   
+    Write-Information 'HelloID account entitlement import completed'
+}
+catch {
+    $ex = $PSItem
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObj = Resolve-HelloIDError -ErrorObject $ex
+        Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        Write-Error "Could not import HelloID account entitlements. Error: $($errorObj.FriendlyMessage)"
+    }
+    else {
+        Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Error "Could not import HelloID account entitlements. Error: $($ex.Exception.Message)"
     }
 }

@@ -6,14 +6,6 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
 #region functions
 function Invoke-HelloIDRestMethod {
     [CmdletBinding()]
@@ -69,7 +61,7 @@ function Invoke-HelloIDRestMethod {
             }
 
             if ($Body) {
-                Write-Verbose "Adding body to request in utf8 byte encoding"
+                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -188,7 +180,7 @@ try {
 
     # Create authorization headers with HelloID API key
     try {
-        Write-Verbose "Creating authorization headers with HelloID API key"
+        Write-Information "Creating authorization headers with HelloID API key"
 
         $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -196,7 +188,7 @@ try {
         $key = "Basic $base64"
         $headers = @{"authorization" = $Key }
 
-        Write-Verbose "Created authorization headers with HelloID API key"
+        Write-Information "Created authorization headers with HelloID API key"
     }
     catch {
         $ex = $PSItem
@@ -222,7 +214,7 @@ try {
 
     # Get current account
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
         $queryUserSplatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
             Headers = $headers
@@ -259,11 +251,11 @@ try {
     if (($correlatedAccount | Measure-Object).count -eq 1) {
         # Create reference object from correlated account and remove depth from userAttributes
         $referenceObject = $correlatedAccount.PSObject.Copy()
+        $outputContext.PreviousData = $correlatedAccount
         foreach ($userAttribute in $referenceObject.userAttributes.PSObject.Properties) {
             $referenceObject | Add-Member -MemberType NoteProperty -Name "userAttributes_$($userAttribute.Name)" -Value $userAttribute.Value -Force
         }
         $referenceObject.PSObject.Properties.remove("userAttributes")
-        $outputContext.PreviousData = $referenceObject
 
         # Create difference object from mapped account and remove depth from userAttributes
         $differenceObject = $account.PSObject.Copy()
@@ -273,20 +265,23 @@ try {
         $differenceObject.PSObject.Properties.remove("userAttributes")
 
         $propertiesToCompare = $differenceObject.PSObject.Properties.Name | Where-Object { $_ -ne "userGUID" }
+
+        # Ensure that all properties that are being compared exist on the reference object, if not add them with null value (to ensure they are included in Compare-Object)
+        foreach ($missingProperties in $propertiesToCompare) {
+            if (-not($referenceObject."$missingProperties")) {
+                $referenceObject | Add-Member -MemberType NoteProperty -Name $missingProperties -Value $null -Force
+            }
+        }
         $splatCompareProperties = @{
             ReferenceObject  = $referenceObject.PSObject.Properties | Where-Object { $_.Name -in $propertiesToCompare }
             DifferenceObject = $differenceObject.PSObject.Properties | Where-Object { $_.Name -in $propertiesToCompare }
         }
-        $propertiesChanged = Compare-Object @splatCompareProperties -PassThru
-        $oldProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '<=' })
-        $newProperties = $propertiesChanged.Where( { $_.SideIndicator -eq '=>' })
-
-        if ($newProperties) {
-            $action = "UpdateAccount"
-            Write-Information "Account property(s) required to update: $($newProperties.Name -join ', ')"
+        $propertiesChanged = Compare-Object @splatCompareProperties -PassThru | Where-Object { $_.SideIndicator -eq '=>' }
+        if ($propertiesChanged) {
+            $action = 'UpdateAccount'
         }
         else {
-            $action = "NoChanges"
+            $action = 'NoChanges'
         }
     }
     elseif (($correlatedAccount | Measure-Object).count -gt 1) {
@@ -301,25 +296,11 @@ try {
         "UpdateAccount" {
             # Update account
             try {
-                # Create custom object with old and new values (for logging)
-                $changedPropertiesObject = [PSCustomObject]@{
-                    OldValues = @{}
-                    NewValues = @{}
-                }
-
-                foreach ($oldProperty in ($oldProperties | Where-Object { $_.Name -in $newProperties.Name })) {
-                    $changedPropertiesObject.OldValues.$($oldProperty.Name) = $oldProperty.Value
-                }
-
-                foreach ($newProperty in $newProperties) {
-                    $changedPropertiesObject.NewValues.$($newProperty.Name) = $newProperty.Value
-                }
-
-                # Create account body and set with previous account data
-                $accountBody = $correlatedAccount.PSObject.Copy()
+                # Create account body and set with previous account data. Because of nested properties, we need to convert to json and back to create a deep copy of the object to avoid modifying the correlatedAccount object when adding updated properties to the account body
+                $accountBody = $correlatedAccount | ConvertTo-Json | ConvertFrom-Json
 
                 # Add the updated properties to account body
-                foreach ($newProperty in $newProperties) {
+                foreach ($newProperty in $propertiesChanged) {
                     if ($newProperty.Name -eq "userName") {
                         $accountBody | Add-Member -MemberType NoteProperty -Name "IdentifierObject" -Value @{ userName = $newProperty.Value } -Force
                     }
@@ -340,20 +321,20 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
-                    Write-Verbose "Body: $($updateUserSplatParams.Body)"
+                    Write-Information "Updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Account property(s) updated: [$($propertiesChanged.name -join ',')]"
+                    Write-Information "Body: $($updateUserSplatParams.Body)"
 
                     $updatedAccount = Invoke-HelloIDRestMethod @updateUserSplatParams
                     $outputContext.Data = $updatedAccount
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Updated account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                            Message = "Updated account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Account property(s) updated: [$($propertiesChanged.name -join ',')]"
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would update account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json). New values: $($changedPropertiesObject.newValues | ConvertTo-Json)"
+                    Write-Warning "DryRun: Would update account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Account property(s) updated: [$($propertiesChanged.name -join ',')]"
                     Write-Warning "DryRun: Body: $($updateUserSplatParams.Body)"
                 }
             }

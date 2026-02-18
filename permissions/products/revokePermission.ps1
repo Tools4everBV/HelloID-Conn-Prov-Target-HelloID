@@ -1,18 +1,10 @@
-########################################################################
-# HelloID-Conn-Prov-Target-HelloID-Revoke-Groups
+######################################################
+# HelloID-Conn-Prov-Target-HelloID-Revoke-Products
 # PowerShell V2
 ######################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
-
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
 
 #region functions
 function Invoke-HelloIDRestMethod {
@@ -69,7 +61,7 @@ function Invoke-HelloIDRestMethod {
             }
 
             if ($Body) {
-                Write-Verbose "Adding body to request in utf8 byte encoding"
+                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -160,7 +152,7 @@ try {
 
     # Create authorization headers with HelloID API key
     try {
-        Write-Verbose "Creating authorization headers with HelloID API key"
+        Write-Information "Creating authorization headers with HelloID API key"
 
         $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -168,7 +160,7 @@ try {
         $key = "Basic $base64"
         $headers = @{"authorization" = $Key }
 
-        Write-Verbose "Created authorization headers with HelloID API key"
+        Write-Information "Created authorization headers with HelloID API key"
     }
     catch {
         $ex = $PSItem
@@ -194,7 +186,7 @@ try {
 
     # Get current account
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
         $queryUserSplatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
             Headers = $headers
@@ -240,28 +232,37 @@ try {
     # Process
     switch ($action) {
         "RevokePermission" {
-            # Revoke groupmembership
+            # Revoke product
             try {
-                $revokeGroupMembershipSplatParams = @{
-                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)/groups/$($actionContext.References.Permission.id)"
+                $permissionBody = @{
+                    productGUID     = $actionContext.References.Permission.Id
+                    userGUID        = $correlatedAccount.userGuid
+                    executeActions  = $true
+                }
+
+                $body = ($permissionBody | ConvertTo-Json -Depth 10)
+                $revokeProductSplatParams = @{
+                    Uri     = "$($actionContext.Configuration.baseUrl)/product-assignment/unassign/by-product"
                     Headers = $headers
-                    Method  = "DELETE"
+                    Method  = "POST"
                     Body    = $body
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Information "Revoking product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Information "Body: $($revokeProductSplatParams.Body)"
 
-                    $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
+                    $revokeProduct = Invoke-HelloIDRestMethod @revokeProductSplatParams
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Revoked group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            Message = "Revoked product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would revoke group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Warning "DryRun: Would revoke product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Warning "DryRun: Body: $($revokeProductSplatParams.Body)"
                 }
             }
             catch {
@@ -269,11 +270,11 @@ try {
                 if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
                     $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
                     $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    $auditMessage = "Error revoking product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
                     Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
                 }
                 else {
-                    $auditMessage = "Error revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    $auditMessage = "Error revoking product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
                     Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
                 }
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
@@ -305,13 +306,16 @@ try {
         }
 
         "NotFound" {
-            $auditMessage = "Skipped revoking group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
+            $auditMessage = "No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
                     Message = $auditMessage
-                    IsError = $false
+                    IsError = $true
                 })
+        
+            # Throw terminal error
+            throw $auditMessage
 
             break
         }

@@ -6,14 +6,6 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
 #region functions
 function Invoke-HelloIDRestMethod {
     [CmdletBinding()]
@@ -69,7 +61,7 @@ function Invoke-HelloIDRestMethod {
             }
 
             if ($Body) {
-                Write-Verbose "Adding body to request in utf8 byte encoding"
+                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -160,7 +152,7 @@ try {
 
     # Create authorization headers with HelloID API key
     try {
-        Write-Verbose "Creating authorization headers with HelloID API key"
+        Write-Information "Creating authorization headers with HelloID API key"
 
         $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -168,7 +160,7 @@ try {
         $key = "Basic $base64"
         $headers = @{"authorization" = $Key }
 
-        Write-Verbose "Created authorization headers with HelloID API key"
+        Write-Information "Created authorization headers with HelloID API key"
     }
     catch {
         $ex = $PSItem
@@ -194,7 +186,7 @@ try {
 
     # Get current account
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
         $queryUserSplatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
             Headers = $headers
@@ -228,7 +220,27 @@ try {
     }
 
     if (($correlatedAccount | Measure-Object).count -eq 1) {
-        $action = "GrantPermission"
+
+        # Verify if product is already granted to user
+        $assignmentsSplatParams = @{
+            Uri     = "$($actionContext.Configuration.baseUrl)/product-assignment/by-user/$($correlatedAccount.userGuid)"
+            Headers = $headers
+            Method  = "GET"
+            UsePaging = $true
+        }
+
+        $assignments = Invoke-HelloIDRestMethod @assignmentsSplatParams
+
+        if ($null -ne $assignments) {
+            $assignedProduct = $assignments | Where-Object { $_.productGuid -eq $actionContext.References.Permission.Id }
+            if ($null -ne $assignedProduct) {
+
+                $action = "AlreadyGranted"
+            }
+        }
+        else {
+            $action = "GrantPermission"
+        }
     }
     elseif (($correlatedAccount | Measure-Object).count -gt 1) {
         $action = "MultipleFound"
@@ -258,19 +270,19 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Requesting product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                    Write-Verbose "Body: $($requestProductSplatParams.Body)"
+                    Write-Information "Requesting product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Information "Body: $($requestProductSplatParams.Body)"
 
                     $requestedProduct = Invoke-HelloIDRestMethod @requestProductSplatParams
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Granted product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            Message = "Granted product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would request product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Warning "DryRun: Would request product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                     Write-Warning "DryRun: Body: $($requestProductSplatParams.Body)"
                 }
             }
@@ -279,11 +291,11 @@ try {
                 if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
                     $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
                     $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error granting product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    $auditMessage = "Error granting product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
                     Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
                 }
                 else {
-                    $auditMessage = "Error granting product: [$($actionContext.References.Permission.Name)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    $auditMessage = "Error granting product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
                     Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
                 }
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
@@ -297,6 +309,16 @@ try {
             }
 
             break
+        }
+
+        "AlreadyGranted" {
+            $auditMessage = "Product: [$($actionContext.PermissionDisplayName)] with selfServiceProductGUID: [$($actionContext.References.Permission.id)] is already granted for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). No action will be taken."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $false
+                })
         }
 
         "MultipleFound" {

@@ -6,14 +6,6 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
 #region functions
 function Invoke-HelloIDRestMethod {
     [CmdletBinding()]
@@ -69,7 +61,7 @@ function Invoke-HelloIDRestMethod {
             }
 
             if ($Body) {
-                Write-Verbose "Adding body to request in utf8 byte encoding"
+                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -160,7 +152,7 @@ try {
 
     # Create authorization headers with HelloID API key
     try {
-        Write-Verbose "Creating authorization headers with HelloID API key"
+        Write-Information "Creating authorization headers with HelloID API key"
 
         $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -168,7 +160,7 @@ try {
         $key = "Basic $base64"
         $headers = @{"authorization" = $Key }
 
-        Write-Verbose "Created authorization headers with HelloID API key"
+        Write-Information "Created authorization headers with HelloID API key"
     }
     catch {
         $ex = $PSItem
@@ -194,7 +186,7 @@ try {
 
     # Get current account
     try {
-        Write-Verbose "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
         $queryUserSplatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
             Headers = $headers
@@ -255,19 +247,19 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Granting group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                    Write-Verbose "Body: $($grantGroupMembershipSplatParams.Body)"
+                    Write-Information "Granting group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Information "Body: $($grantGroupMembershipSplatParams.Body)"
 
                     $grantedGroupMembership = Invoke-HelloIDRestMethod @grantGroupMembershipSplatParams
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Granted group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            Message = "Granted group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would grant group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                    Write-Warning "DryRun: Would grant group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                     Write-Warning "DryRun: Body: $($grantGroupMembershipSplatParams.Body)"
                 }
             }
@@ -276,11 +268,11 @@ try {
                 if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
                     $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
                     $errorObj = Resolve-HelloIDError -ErrorObject $ex
-                    $auditMessage = "Error granting group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    $auditMessage = "Error granting group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
                     Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
                 }
                 else {
-                    $auditMessage = "Error granting group: [$($actionContext.References.Permission.Name)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    $auditMessage = "Error granting group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
                     Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
                 }
                 $outputContext.AuditLogs.Add([PSCustomObject]@{

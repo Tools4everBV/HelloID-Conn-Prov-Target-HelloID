@@ -1,5 +1,5 @@
-######################################################
-# HelloID-Conn-Prov-Target-HelloID-Permissions-Products
+########################################################################
+# HelloID-Conn-Prov-Target-HelloID-Revoke-Groups
 # PowerShell V2
 ######################################################
 
@@ -139,7 +139,17 @@ function Resolve-HelloIDError {
 }
 #endregion functions
 
+#region Correlation mapping
+$correlationField = "userGUID"
+$correlationValue = $actionContext.References.Account
+#endregion Correlation mapping
+
 try {
+    # Verify if [aRef] has a value
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+
     # Create authorization headers with HelloID API key
     try {
         Write-Information "Creating authorization headers with HelloID API key"
@@ -171,36 +181,34 @@ try {
             })
 
         # Throw terminal error
-        throw $auditMessage 
+        throw $auditMessage   
     }
 
-    # Get products
+    # Get current account
     try {
-        Write-Information 'Querying products'
-
-        $queryProductsSplatParams = @{
-            Uri       = "$($actionContext.Configuration.baseUrl)/products"
-            Headers   = $headers
-            Method    = "GET"
-            UsePaging = $true
+        Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
+        $queryUserSplatParams = @{
+            Uri     = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
+            Headers = $headers
+            Method  = "GET"
         }
 
-        $products = Invoke-HelloIDRestMethod @queryProductsSplatParams
-
-        Write-Information "Queried products. Result count: $(($products | Measure-Object).Count)"
+        $correlatedAccount = Invoke-HelloIDRestMethod @queryUserSplatParams
     }
     catch {
         $ex = $PSItem
         if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
             $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
             $errorObj = Resolve-HelloIDError -ErrorObject $ex
-            $auditMessage = "Error querying products. Error: $($errorObj.FriendlyMessage)"
+
+            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($errorObj.FriendlyMessage)"
             Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
         }
         else {
-            $auditMessage = "Error querying products. Error: $($ex.Exception.Message)"
+            $auditMessage = "Error querying account where [$($correlationField)] = [$($correlationValue)]. Error: $($ex.Exception.Message)"
             Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
         }
+
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
                 Message = $auditMessage
@@ -210,24 +218,107 @@ try {
         # Throw terminal error
         throw $auditMessage
     }
+
+    if (($correlatedAccount | Measure-Object).count -eq 1) {
+        $action = "RevokePermission"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
+        $action = "MultipleFound"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
+        $action = "NotFound"
+    }
+
+    # Process
+    switch ($action) {
+        "RevokePermission" {
+            # Revoke groupmembership
+            try {
+                $revokeGroupMembershipSplatParams = @{
+                    Uri     = "$($actionContext.Configuration.baseUrl)/users/$($correlatedAccount.userGuid)/groups/$($actionContext.References.Permission.id)"
+                    Headers = $headers
+                    Method  = "DELETE"
+                    Body    = $body
+                }
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Information "Revoking group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+
+                    $revokedGroupMembership = Invoke-HelloIDRestMethod @revokeGroupMembershipSplatParams
+
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Revoked group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: Would revoke group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                }
+            }
+            catch {
+                $ex = $PSItem
+                if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+                    $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+                    $errorObj = Resolve-HelloIDError -ErrorObject $ex
+                    $auditMessage = "Error revoking group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($errorObj.FriendlyMessage)"
+                    Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+                }
+                else {
+                    $auditMessage = "Error revoking group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Error: $($ex.Exception.Message)"
+                    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+                }
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = $auditMessage
+                        IsError = $true
+                    })
+
+                # Throw terminal error
+                throw $auditMessage
+            }
+
+            break
+        }
+
+        "MultipleFound" {
+            $auditMessage = "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the accounts are unique."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $true
+                })
+        
+            # Throw terminal error
+            throw $auditMessage
+
+            break
+        }
+
+        "NotFound" {
+            $auditMessage = "Skipped revoking group: [$($actionContext.PermissionDisplayName)] with groupGuid: [$($actionContext.References.Permission.id)] from account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or the account is not correlated."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = $auditMessage
+                    IsError = $false
+                })
+
+            break
+        }
+    }
 }
 catch {
     $ex = $PSItem
     Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
 }
 finally {
-    # Send results
-    foreach ($product in $products) {
-        # Shorten DisplayName to max. 100 chars
-        $displayName = "Product - $($product.name)"
-        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
-        $permission = @{
-            DisplayName    = $displayName
-            Identification = @{
-                Id   = $product.productId
-            }
-        }
-
-        $outputContext.Permissions.Add($permission)
+    # Check if auditLogs contains errors, if no errors are found, set success to true
+    if ($outputContext.AuditLogs.IsError -contains $true) {
+        $outputContext.Success = $false
+    }
+    else {
+        $outputContext.Success = $true
     }
 }
