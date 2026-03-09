@@ -254,6 +254,23 @@
           "StoreInAccountData": true
         }
       ]
+    },
+    {
+      "Name": "userAttributes.externalid",
+      "Description": "",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.ExternalId\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
     }
   ],
   "UniqueFieldNames": []
