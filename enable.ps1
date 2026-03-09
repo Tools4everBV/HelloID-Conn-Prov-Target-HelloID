@@ -150,9 +150,7 @@ if ($account.PSObject.Properties.Name -Contains 'isEnabled' -and -not[String]::I
 # If option to set manager is toggled, Add manager userGUID to account object
 # Note: this is only available after granting the account for the manager
 if ($true -eq $actionContext.Configuration.setManager) {
-    if ($account.PSObject.Properties.Name -Contains 'managedByUserGUID') { 
-        $account.managedByUserGUID = $actionContext.References.ManagerAccount
-    }
+   $account | Add-Member @{ managedByUserGUID = $actionContext.References.ManagerAccount } -Force
 }
 else {
     # If option to set manager isn't toggled, remove from account object
