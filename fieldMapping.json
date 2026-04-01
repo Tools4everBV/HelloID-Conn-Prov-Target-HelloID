@@ -256,6 +256,23 @@
       ]
     },
     {
+      "Name": "lastName",
+      "Description": "",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"// Mapping logic to generate the Surname according to the following convention.\\r\\n// First choice\\t        B\\tvan den boele\\r\\n// \\t                    BP\\tvan den Boele – de Vries\\r\\n// \\t                    P\\tde Vries\\r\\n// \\t                    PB  de Vries – van den Boele\\r\\nfunction generateSurname() {\\r\\n    let middleName = Person.Name.FamilyNamePrefix;\\r\\n    let lastName = Person.Name.FamilyName;\\r\\n    let middleNamePartner = Person.Name.FamilyNamePartnerPrefix;\\r\\n    let lastNamePartner = Person.Name.FamilyNamePartner;\\r\\n\\r\\n    let convention = Person.Name.Convention;\\r\\n\\r\\n    let maxAttributeLength = 64;\\r\\n\\r\\n    let surname = '';\\r\\n    switch (convention) {\\r\\n        case \\\"BP\\\":\\r\\n            if (typeof middleName !== 'undefined' && middleName) { surname = surname + middleName + ' ' }\\r\\n            surname = surname + lastName;\\r\\n\\r\\n            surname = surname + ' - ';\\r\\n\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { surname = surname + middleNamePartner + ' ' }\\r\\n            surname = surname + lastNamePartner;\\r\\n            break;\\r\\n        case \\\"PB\\\":\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { surname = surname + middleNamePartner + ' ' }\\r\\n            surname = surname + lastNamePartner;\\r\\n\\r\\n            surname = surname + ' - ';\\r\\n            if (typeof middleName !== 'undefined' && middleName) { surname = surname + middleName + ' ' }\\r\\n            surname = surname + lastName;\\r\\n            break;\\r\\n        case \\\"P\\\":\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { surname = surname + middleNamePartner + ' ' }\\r\\n            surname = surname + lastNamePartner;\\r\\n            break;\\r\\n        case \\\"B\\\":\\r\\n        default:\\r\\n            if (typeof middleName !== 'undefined' && middleName) { surname = surname + middleName + ' ' }\\r\\n            surname = surname + lastName;\\r\\n            break;\\r\\n    }\\r\\n    // Trim spaces at start and end\\r\\n    surname = surname.trim();\\r\\n\\r\\n    // Shorten string to maxAttributeLength minus iteration length\\r\\n    surname = surname.substring(0, maxAttributeLength);\\r\\n\\r\\n    return surname;\\r\\n}\\r\\n\\r\\ngenerateSurname();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    },
+    {
       "Name": "userAttributes.externalid",
       "Description": "",
       "Type": "Text",
