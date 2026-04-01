@@ -140,6 +140,14 @@ function Resolve-HelloIDError {
 #endregion functions
 
 #region Account mapping
+if ($actionContext.Origin -eq 'reconciliation') {
+    $data = [pscustomobject]@{ 
+        isEnabled      = 'false'
+        userAttributes = [pscustomobject]@{description = 'Disabled by HelloID Provisioning [reconciliation]' }
+    }
+    $actionContext | Add-Member -MemberType NoteProperty -Name 'data' -Value $data -Force
+}
+
 $account = [PSCustomObject]$actionContext.Data
 
 # Convert isEnabled to boolean
@@ -147,21 +155,23 @@ if ($account.PSObject.Properties.Name -Contains 'isEnabled' -and -not[String]::I
     $account.isEnabled = [System.Convert]::ToBoolean($account.isEnabled)
 }
 
-# If option to set manager is toggled, Add manager userGUID to account object
-# Note: this is only available after granting the account for the manager
-if ($true -eq $actionContext.Configuration.setManager) {
-    $account | Add-Member @{ managedByUserGUID = $actionContext.References.ManagerAccount } -Force
-}
-else {
-    # If option to set manager isn't toggled, remove from account object
-    if ($account.PSObject.Properties.Name -Contains 'managedByUserGUID') { 
-        $account.PSObject.Properties.Remove("managedByUserGUID")
+if ($actionContext.Origin -eq 'enforcement') {
+    # If option to set manager is toggled, Add manager userGUID to account object
+    # Note: this is only available after granting the account for the manager
+    if ($true -eq $actionContext.Configuration.setManager) {
+        $account | Add-Member @{ managedByUserGUID = $actionContext.References.ManagerAccount } -Force
     }
-}
+    else {
+        # If option to set manager isn't toggled, remove from account object
+        if ($account.PSObject.Properties.Name -Contains 'managedByUserGUID') { 
+            $account.PSObject.Properties.Remove("managedByUserGUID")
+        }
+    }
 
-# If option to update username isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.updateUserName) {
-    $account.PSObject.Properties.Remove("userName")
+    # If option to update username isn't toggled, remove from account object
+    if ($false -eq $actionContext.Configuration.updateUserName) {
+        $account.PSObject.Properties.Remove("userName")
+    }
 }
 #endregion Account mapping
 
