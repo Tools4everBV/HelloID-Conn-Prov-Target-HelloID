@@ -46,7 +46,7 @@ The following features are available:
 | **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete |                   |
 | **Permissions**                           | ✅         | Retrieve, Grant, Revoke                 | Static or Dynamic |
 | **Resources**                             | ✅         | Retrieve, Create                        | Groups only       |
-| **Entitlement Import: Accounts**          | ❌         | -                                       |                   |
+| **Entitlement Import: Accounts**          | ✅         | -                                       |                   |
 | **Entitlement Import: Permissions**       | ✅         | -                                       | Groups, Products  |
 | **Governance Reconciliation Resolutions** | ✅         | -                                       |                   |
 
