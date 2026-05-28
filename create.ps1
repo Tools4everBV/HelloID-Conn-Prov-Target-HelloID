@@ -214,7 +214,7 @@ try {
             # Verify if a user must be either [created ] or just [correlated]
             Write-Information "Querying account where [$($correlationField)] = [$($correlationValue)]"
             $queryUserSplatParams = @{
-                Uri         = "$($actionContext.Configuration.baseUrl)/users/$correlationValue"
+                Uri         = "$($actionContext.Configuration.baseUrl)/users/$([System.Web.HttpUtility]::UrlEncode($correlationValue))"
                 Headers     = $headers
                 Method      = "GET"
                 ContentType = "application/json;charset=utf-8"
