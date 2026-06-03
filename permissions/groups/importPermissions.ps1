@@ -1,5 +1,5 @@
 ####################################################################
-# HelloID-Conn-Prov-Target-HelloID-ImportPermissions-Group
+# HelloID-Conn-Prov-Target-HelloID-ImportPermissionEntitlements-Group
 # PowerShell V2
 ####################################################################
 
@@ -40,11 +40,7 @@ function Invoke-HelloIDRestMethod {
 
         [Parameter()]
         [Int]
-        $Take = 1000,
-
-        [Parameter()]
-        [Int]
-        $TimeoutSec = 60
+        $Take = 1000
     )
 
     process {
@@ -54,14 +50,12 @@ function Invoke-HelloIDRestMethod {
                 Headers         = $Headers
                 Method          = $Method
                 ContentType     = $ContentType
-                TimeoutSec      = 60
                 UseBasicParsing = $true
                 Verbose         = $false
                 ErrorAction     = "Stop"
             }
 
             if ($Body) {
-                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -69,7 +63,9 @@ function Invoke-HelloIDRestMethod {
                 $result = [System.Collections.ArrayList]@()
                 $startUri = $splatParams.Uri
                 do {
-                    $splatParams["Uri"] = $startUri + "?take=$($take)&skip=$($skip)"
+                    # Determine separator based on whether URI already contains query parameters
+                    $separator = if ($startUri -match '\?') { '&' } else { '?' }
+                    $splatParams["Uri"] = $startUri + "$($separator)take=$($take)&skip=$($skip)"
                     $response = (Invoke-RestMethod @splatParams)
                     if ([bool]($response.PSobject.Properties.name -eq "data")) {
                         $response = $response.data
@@ -95,6 +91,7 @@ function Invoke-HelloIDRestMethod {
         }
     }
 }
+
 function Resolve-HelloIDError {
     [CmdletBinding()]
     param (
@@ -129,7 +126,9 @@ function Resolve-HelloIDError {
             elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "message")) {
                 $httpErrorObj.FriendlyMessage = $errorDetailsObject.message
             }
-            $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails # Temporarily assignment
+            else {
+                $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails # Temporarily assignment
+            }
         }
         catch {
             $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails
@@ -140,9 +139,11 @@ function Resolve-HelloIDError {
 }
 #endregion
 
-# Create authorization headers with HelloID API key
 try {
-    Write-Information "Creating authorization headers with HelloID API key"
+    Write-Information 'Starting import of group permission entitlements'
+
+    # Create authorization headers with HelloID API key
+    $actionMessage = "creating authorization headers with HelloID API key"
 
     $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
     $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -150,55 +151,53 @@ try {
     $key = "Basic $base64"
     $headers = @{"authorization" = $Key }
 
-    Write-Information "Created authorization headers with HelloID API key"
-}
-catch {
-    $ex = $PSItem
-    if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-        $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-        $errorObj = Resolve-HelloIDError -ErrorObject $ex
-        $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
-        Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-    }
-    else {
-        $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
-        Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-    }
-    $outputContext.AuditLogs.Add([PSCustomObject]@{
-            # Action  = "" # Optional
-            Message = $auditMessage
-            IsError = $true
-        })
+    Write-Verbose "Created authorization headers with HelloID API key"
 
-    # Throw terminal error
-    throw $auditMessage 
-}
-
-try {
-    Write-Information 'Starting HelloID permission entitlement import'
-
+    # Get groups
+    $actionMessage = "querying groups"
     $splatImportGroupsParams = @{
-        Uri     = "$($actionContext.Configuration.BaseUrl)/groups"
-        Method  = 'GET'
-        Headers = $headers
+        Uri       = "$($actionContext.Configuration.BaseUrl)/groups"
+        Method    = 'GET'
+        Headers   = $headers
         UsePaging = $true
     }
     $importedGroups = Invoke-HelloIDRestMethod @splatImportGroupsParams
+    Write-Information "Queried groups. Result count: $($importedGroups.groupGuid.Count)"
 
+    # Filter for Local groups only (groups from another source are managed by the other sources)
+    $actionMessage = "filtering for groups of source 'Local'"
+    $importedGroups = $importedGroups | Where-Object { $_.source -eq "Local" }
+    Write-Information "Filtered for groups of source 'Local'. Result count: $($importedGroups.groupGuid.Count)"
+
+    # Select only required properties to optimize performance
+    $actionMessage = "selecting required properties for groups"
+    $importedGroups = $importedGroups | Select-Object groupGuid, name
+
+    # Process each group and output permission entitlement objects with account references in batches to prevent exceeding maximum limits
+    $actionMessage = "querying members of group and outputting permission entitlements to HelloID (in batches of 500 account references)"
+    $importedPermissionEntitlements = 0
     foreach ($importedGroup in $importedGroups) {
+        $actionMessage = "processing group [$($importedGroup.name) ($($importedGroup.groupGuid))]"
+
+        # Shorten DisplayName to max. 100 chars
+        $displayName = "$($importedGroup.name)"
+        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
+
+        $permission = @{
+            PermissionReference = @{
+                Id = $importedGroup.groupGuid
+            }
+            DisplayName         = $displayName
+            AccountReferences   = $null
+        }
+
+        # Get group members for current group
         $splatImportGroupParams = @{
             Uri     = "$($actionContext.Configuration.BaseUrl)/groups/$($importedGroup.groupGuid)"
             Method  = 'GET'
             Headers = $headers
         }
         $group = Invoke-HelloIDRestMethod @splatImportGroupParams
-        $permission = @{
-            PermissionReference = @{
-                Id = $importedGroup.groupGuid
-            }
-            DisplayName         = "$($importedGroup.name)"
-            AccountReferences   = $null
-        }
 
         # The code below splits a list of permission members into batches of 100
         # Each batch is assigned to $permission.AccountReferences and the permission object will be returned to HelloID for each batch
@@ -207,20 +206,27 @@ try {
         for ($i = 0; $i -lt $group.users.Count; $i += $batchSize) {
             $permission.AccountReferences = $group.users[$i..([Math]::Min($i + $batchSize - 1, $group.users.Count - 1))]
             Write-Output $permission
+            
+            # Increment count of imported permission entitlements by the number of account references in the current batch
+            $importedPermissionEntitlements += $permission.AccountReferences.Count
         }
     }
-    Write-Information 'HelloID permission entitlement import completed'
+
+    Write-Information "Completed import of group permission entitlements. Result count: $($importedPermissionEntitlements)"
 }
 catch {
     $ex = $PSItem
-    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
-        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+    if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+        $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
         $errorObj = Resolve-HelloIDError -ErrorObject $ex
-        Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        Write-Error "Could not import HelloID permission entitlements. Error: $($errorObj.FriendlyMessage)"
+        $warningMessage = "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        $errorMessage = "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
     }
     else {
-        Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        Write-Error "Could not import HelloID permission entitlements. Error: $($ex.Exception.Message)"
+        $warningMessage = "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        $errorMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
     }
+    Write-Warning $warningMessage
+
+    Write-Error $errorMessage
 }
