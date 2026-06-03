@@ -1,5 +1,5 @@
 ######################################################
-# HelloID-Conn-Prov-Target-HelloID-Permissions-Groups
+# HelloID-Conn-Prov-Target-HelloID-Permissions-Group
 # PowerShell V2
 ######################################################
 
@@ -40,11 +40,7 @@ function Invoke-HelloIDRestMethod {
 
         [Parameter()]
         [Int]
-        $Take = 1000,
-
-        [Parameter()]
-        [Int]
-        $TimeoutSec = 60
+        $Take = 1000
     )
 
     process {
@@ -54,14 +50,12 @@ function Invoke-HelloIDRestMethod {
                 Headers         = $Headers
                 Method          = $Method
                 ContentType     = $ContentType
-                TimeoutSec      = 60
                 UseBasicParsing = $true
                 Verbose         = $false
                 ErrorAction     = "Stop"
             }
 
             if ($Body) {
-                Write-Information "Adding body to request in utf8 byte encoding"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($Body))
             }
 
@@ -69,7 +63,9 @@ function Invoke-HelloIDRestMethod {
                 $result = [System.Collections.ArrayList]@()
                 $startUri = $splatParams.Uri
                 do {
-                    $splatParams["Uri"] = $startUri + "?take=$($take)&skip=$($skip)"
+                    # Determine separator based on whether URI already contains query parameters
+                    $separator = if ($startUri -match '\?') { '&' } else { '?' }
+                    $splatParams["Uri"] = $startUri + "$($separator)take=$($take)&skip=$($skip)"
                     $response = (Invoke-RestMethod @splatParams)
                     if ([bool]($response.PSobject.Properties.name -eq "data")) {
                         $response = $response.data
@@ -123,12 +119,21 @@ function Resolve-HelloIDError {
         }
         try {
             $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
-            # error message can be either in [resultMsg] or [message]
+            # error message can be either in [resultMsg] or [message] or [textResult] or [error]
             if ([bool]($errorDetailsObject.PSobject.Properties.name -eq "resultMsg")) {
                 $httpErrorObj.FriendlyMessage = $errorDetailsObject.resultMsg
             }
             elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "message")) {
                 $httpErrorObj.FriendlyMessage = $errorDetailsObject.message
+            }
+            elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "textResult")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.textResult
+            }
+            elseif ([bool]($errorDetailsObject.PSobject.Properties.name -eq "error")) {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.error
+            }
+            else {
+                $httpErrorObj.FriendlyMessage = $httpErrorObj.ErrorDetails # Temporarily assignment
             }
         }
         catch {
@@ -140,94 +145,74 @@ function Resolve-HelloIDError {
 #endregion functions
 
 try {
+    Write-Information 'Starting import of group permissions'
+
     # Create authorization headers with HelloID API key
-    try {
-        Write-Information "Creating authorization headers with HelloID API key"
+    $actionMessage = "creating authorization headers with HelloID API key"
 
-        $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
-        $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
-        $base64 = [System.Convert]::ToBase64String($bytes)
-        $key = "Basic $base64"
-        $headers = @{"authorization" = $Key }
+    $pair = "$($actionContext.Configuration.apiKey):$($actionContext.Configuration.apiSecret)"
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+    $base64 = [System.Convert]::ToBase64String($bytes)
+    $key = "Basic $base64"
+    $headers = @{"authorization" = $Key }
 
-        Write-Information "Created authorization headers with HelloID API key"
-    }
-    catch {
-        $ex = $PSItem
-        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-            $errorObj = Resolve-HelloIDError -ErrorObject $ex
-            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($errorObj.FriendlyMessage)"
-            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        }
-        else {
-            $auditMessage = "Error creating authorization headers with HelloID API key. Error: $($ex.Exception.Message)"
-            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        }
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = $auditMessage
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw $auditMessage 
-    }
+    Write-Verbose "Created authorization headers with HelloID API key"
 
     # Get groups
-    try {
-        Write-Information 'Querying groups'
-
-        $queryGroupsSplatParams = @{
-            Uri       = "$($actionContext.Configuration.baseUrl)/groups"
-            Headers   = $headers
-            Method    = "GET"
-            UsePaging = $true
-        }
-
-        $groups = Invoke-HelloIDRestMethod @queryGroupsSplatParams
-
-        Write-Information "Queried groups. Result count: $(($groups | Measure-Object).Count)"
+    $actionMessage = "querying groups"
+    $splatImportGroupsParams = @{
+        Uri       = "$($actionContext.Configuration.BaseUrl)/groups"
+        Method    = 'GET'
+        Headers   = $headers
+        UsePaging = $true
     }
-    catch {
-        $ex = $PSItem
-        if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
-            $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
-            $errorObj = Resolve-HelloIDError -ErrorObject $ex
-            $auditMessage = "Error querying groups. Error: $($errorObj.FriendlyMessage)"
-            Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        }
-        else {
-            $auditMessage = "Error querying groups. Error: $($ex.Exception.Message)"
-            Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        }
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = $auditMessage
-                IsError = $true
-            })
+    $importedGroups = Invoke-HelloIDRestMethod @splatImportGroupsParams
+    Write-Information "Queried groups. Result count: $($importedGroups.groupGuid.Count)"
 
-        # Throw terminal error
-        throw $auditMessage
+    # Filter for Local groups only (groups from another source are managed by the other sources)
+    $actionMessage = "filtering for groups of source 'Local'"
+    $importedGroups = $importedGroups | Where-Object { $_.source -eq "Local" }
+    Write-Information "Filtered for groups of source 'Local'. Result count: $($importedGroups.groupGuid.Count)"
+
+    # Select only required properties to optimize performance
+    $actionMessage = "selecting required properties for groups"
+    $importedGroups = $importedGroups | Select-Object groupGuid, name
+
+    # Import groups as permissions to HelloID
+    $actionMessage = "outputting groups as permissions to HelloID"
+    $importedPermissions = 0
+    foreach ($importedGroup in $importedGroups) {
+        $actionMessage = "processing group [$($importedGroup.name) ($($importedGroup.groupGuid))]"
+
+        # Shorten DisplayName to max. 100 chars
+        $displayName = "$($importedGroup.name)"
+        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
+
+        $outputContext.Permissions.Add(
+            @{
+                DisplayName    = $displayName
+                Identification = @{
+                    Id = $importedGroup.groupGuid
+                }
+            }
+        )
+        $importedPermissions++
     }
+    Write-Information "Completed import of group permissions. Result count: $($importedPermissions)"
 }
 catch {
     $ex = $PSItem
-    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
-}
-finally {
-    # Send results
-    foreach ($group in $groups) {
-        # Shorten DisplayName to max. 100 chars
-        $displayName = "Group - $($group.name)"
-        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
-        $permission = @{
-            DisplayName    = $displayName
-            Identification = @{
-                Id   = $group.groupGuid
-            }
-        }
-
-        $outputContext.Permissions.Add($permission)
+    if ($($ex.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.HttpResponseException") -or
+        $($ex.Exception.GetType().FullName -eq "System.Net.WebException")) {
+        $errorObj = Resolve-HelloIDError -ErrorObject $ex
+        $warningMessage = "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        $errorMessage = "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
     }
+    else {
+        $warningMessage = "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        $errorMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    }
+    Write-Warning $warningMessage
+
+    Write-Error $errorMessage
 }
