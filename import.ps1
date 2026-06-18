@@ -206,8 +206,8 @@ try {
             AccountReference = $importedAccount.userGUID
             displayName      = $displayName
             UserName         = $importedAccount.userName
-            # Enabled          = $importedAccount.isEnabled
-            Enabled          = $false # When using correlate only, no account access is granted. This should be false for the import report.
+            Enabled          = $importedAccount.isEnabled
+            # Enabled          = $false # When using correlate only, no account access is granted. This should be false for the import report.
             Data             = $data
         }
 

@@ -192,7 +192,6 @@ try {
             PermissionReference = @{
                 Id = $importedProduct.productGuid
             }
-            DisplayName         = "$($importedProduct.productName)"
             AccountReferences   = $null
         }
 

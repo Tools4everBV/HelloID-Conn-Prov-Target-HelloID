@@ -179,15 +179,10 @@ try {
     foreach ($importedGroup in $importedGroups) {
         $actionMessage = "processing group [$($importedGroup.name) ($($importedGroup.groupGuid))]"
 
-        # Shorten DisplayName to max. 100 chars
-        $displayName = "$($importedGroup.name)"
-        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
-
         $permission = @{
             PermissionReference = @{
                 Id = $importedGroup.groupGuid
             }
-            DisplayName         = $displayName
             AccountReferences   = $null
         }
 
