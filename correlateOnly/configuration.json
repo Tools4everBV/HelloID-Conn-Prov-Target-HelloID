@@ -1,0 +1,36 @@
+[
+  {
+    "defaultValue": "https://your-company-name.helloid.com/api/v1",
+    "key": "baseUrl",
+    "templateOptions": {
+      "description": "The URL to the API of your HelloID tenant",
+      "label": "Base URL",
+      "placeholder": "https://your-company-name.helloid.com/api/v1",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "defaultValue": "",
+    "key": "apiKey",
+    "templateOptions": {
+      "description": "The API key of your HelloID tenant",
+      "label": "Api key",
+      "placeholder": "ABCDEGJKABCDEFGHIJKNQHUZLZTVWXYZ",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "defaultValue": "",
+    "key": "apiSecret",
+    "templateOptions": {
+      "description": "The API secret of your HelloID tenant",
+      "label": "Api secret",
+      "placeholder": "AbcDEBBaVNdkFgHiJKsWMYScVMtVWXYZ",
+      "required": true,
+      "type": "password"
+    },
+    "type": "input"
+  }
+]

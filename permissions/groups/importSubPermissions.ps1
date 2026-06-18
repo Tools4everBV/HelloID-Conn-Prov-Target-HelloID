@@ -48,11 +48,7 @@ function Invoke-HelloIDRestMethod {
 
         [Parameter()]
         [Int]
-        $Take = 1000,
-
-        [Parameter()]
-        [Int]
-        $TimeoutSec = 60
+        $Take = 1000
     )
 
     process {
@@ -62,7 +58,6 @@ function Invoke-HelloIDRestMethod {
                 Headers         = $Headers
                 Method          = $Method
                 ContentType     = $ContentType
-                TimeoutSec      = 60
                 UseBasicParsing = $true
                 Verbose         = $false
                 ErrorAction     = "Stop"

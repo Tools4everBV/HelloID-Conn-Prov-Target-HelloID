@@ -1,0 +1,38 @@
+{
+  "Version": "v1",
+  "MappingFields": [
+    {
+      "Name": "userGUID",
+      "Description": "[Required] Read-only.\nThe unique identifier for the user.\nUsed as AccountReference.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create"
+          ],
+          "MappingMode": "None",
+          "Value": "null",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "userName",
+      "Description": "[Required] Used for correlation\nNote: correlation only possible on username",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"function getUserName() {\\r\\n    let userName = Person.Accounts._50638ab2329b449cb533dcb70e7b5dc9.userPrincipalName;\\r\\n\\r\\n    return userName;\\r\\n}\\r\\n\\r\\ngetUserName();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    }
+  ],
+  "UniqueFieldNames": []
+}

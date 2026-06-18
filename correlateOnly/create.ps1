@@ -1,7 +1,7 @@
-######################################################
-# HelloID-Conn-Prov-Target-HelloID-Permissions-Group
+#################################################
+# HelloID-Conn-Prov-Target-HelloID-Create
 # PowerShell V2
-######################################################
+#################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -145,7 +145,24 @@ function Resolve-HelloIDError {
 #endregion functions
 
 try {
-    Write-Information 'Starting import of group permissions'
+    # Initial Assignments
+    $outputContext.AccountReference = 'Currently not available'
+
+    # Validate correlation configuration
+    if ($actionContext.CorrelationConfiguration.Enabled) {
+        $correlationField = $actionContext.CorrelationConfiguration.AccountField
+        $correlationValue = $actionContext.CorrelationConfiguration.PersonFieldValue
+
+        if ([string]::IsNullOrEmpty($($correlationField))) {
+            throw 'Correlation is enabled but not configured correctly'
+        }
+        if ([string]::IsNullOrEmpty($($correlationValue))) {
+            throw 'Correlation is enabled but [accountFieldValue] is empty. Please make sure it is correctly mapped'
+        }
+    }
+    else {
+        throw "Correlation is not enabled. This connector only supports correlating existing accounts. Please enable and configure correlation."
+    }
 
     # Create authorization headers with HelloID API key
     $actionMessage = "creating authorization headers with HelloID API key"
@@ -158,47 +175,61 @@ try {
 
     Write-Verbose "Created authorization headers with HelloID API key"
 
-    # Get groups
-    $actionMessage = "querying groups"
-    $splatImportGroupsParams = @{
-        Uri       = "$($actionContext.Configuration.BaseUrl)/groups"
-        Method    = 'GET'
-        Headers   = $headers
-        UsePaging = $true
+    # Correlate account
+    $actionMessage = "querying user with $($correlationField) '$($correlationValue)'"
+    $queryUserSplatParams = @{
+        Uri         = "$($actionContext.Configuration.baseUrl)/users/$([System.Web.HttpUtility]::UrlEncode($correlationValue))"
+        Headers     = $headers
+        Method      = "GET"
+        ContentType = "application/json;charset=utf-8"
+        Verbose     = $false
+        ErrorAction = "Stop"
     }
-    $importedGroups = Invoke-HelloIDRestMethod @splatImportGroupsParams
-    Write-Information "Queried groups. Result count: $($importedGroups.groupGuid.Count)"
 
-    # Filter for Local groups only (groups from another source are managed by the other sources)
-    $actionMessage = "filtering for groups of source 'Local'"
-    $importedGroups = $importedGroups | Where-Object { $_.source -eq "Local" }
-    Write-Information "Filtered for groups of source 'Local'. Result count: $($importedGroups.groupGuid.Count)"
+    $correlatedAccount = Invoke-HelloIDRestMethod @queryUserSplatParams
 
-    # Select only required properties to optimize performance
-    $actionMessage = "selecting required properties for groups"
-    $importedGroups = $importedGroups | Select-Object groupGuid, name
-
-    # Import groups as permissions to HelloID
-    $actionMessage = "outputting groups as permissions to HelloID"
-    $importedPermissions = 0
-    foreach ($importedGroup in $importedGroups) {
-        $actionMessage = "processing group [$($importedGroup.name) ($($importedGroup.groupGuid))]"
-
-        # Shorten DisplayName to max. 100 chars
-        $displayName = "$($importedGroup.name)"
-        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
-
-        $outputContext.Permissions.Add(
-            @{
-                DisplayName    = $displayName
-                Identification = @{
-                    Id = $importedGroup.groupGuid
-                }
-            }
-        )
-        $importedPermissions++
+    # Determine action
+    $actionMessage = "determining action"
+    if (($correlatedAccount | Measure-Object).count -eq 1) {
+        $action = "Correlate"
     }
-    Write-Information "Completed import of group permissions. Result count: $($importedPermissions)"
+    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
+        $action = "MultipleFound"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
+        $action = "NotFound"
+    }
+    Write-Information "Determined action: $($action)"
+
+    # Process
+    switch ($action) {
+        "Correlate" {
+            $actionMessage = "correlating account on field: [$($correlationField)] with value: [$($correlationValue)]"
+            $outputContext.AccountReference = "$($correlatedAccount.userGUID)"
+            $outputContext.Data = $correlatedAccount[0]
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    Action  = "CorrelateAccount" # Optionally specify a different action for this audit log
+                    Message = "Correlated to account [$($correlatedAccount.Username)] with AccountReference [$($outputContext.AccountReference)] on field: [$($correlationField)] with value: [$($correlationValue)]"
+                    IsError = $false
+                })
+            $outputContext.AccountCorrelated = $true
+            break
+        }
+
+        "MultipleFound" {
+            $actionMessage = "correlating account on field: [$($correlationField)] with value: [$($correlationValue)]"
+            # Throw terminal error
+            throw "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the persons are unique."
+            break
+        }
+
+        "NotFound" {
+            $actionMessage = "correlating account on field: [$($correlationField)] with value: [$($correlationValue)]"
+            # Throw terminal error
+            throw "No account found where [$($correlationField)] = [$($correlationValue)]."
+            break
+        }
+    }
 }
 catch {
     $ex = $PSItem
@@ -214,5 +245,17 @@ catch {
     }
     Write-Warning $warningMessage
 
-    Write-Error $errorMessage
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            Message = $errorMessage
+            IsError = $true
+        })
+}
+finally {
+    # Check if auditLogs contains errors, if no errors are found, set success to true
+    if ($outputContext.AuditLogs.IsError -contains $true) {
+        $outputContext.Success = $false
+    }
+    else {
+        $outputContext.Success = $true
+    }
 }
